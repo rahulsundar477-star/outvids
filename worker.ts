@@ -9,6 +9,7 @@
 // @ts-ignore generated at build time
 import { default as handler } from "./.open-next/worker.js";
 import { rerank } from "./lib/rank";
+import { enrichPending } from "./server/enrich";
 import { handleHotPath, isHotPath } from "./server/hotpath";
 import {
   handlePayments,
@@ -29,7 +30,7 @@ export default {
   async scheduled(_controller, env, ctx) {
     ctx.waitUntil(
       (async () => {
-        const [ranked, reconciled] = await Promise.allSettled([
+        const [ranked, reconciled, enriched] = await Promise.allSettled([
           rerank(env, "cron").then(async (r) => {
             await (caches as unknown as { default: Cache }).default.delete(
               FEED_URL,
@@ -42,6 +43,7 @@ export default {
             };
           }),
           reconcilePayments(env),
+          enrichPending(env),
         ]);
         console.log(
           JSON.stringify({
@@ -54,6 +56,10 @@ export default {
               reconciled.status === "fulfilled"
                 ? reconciled.value
                 : { error: String(reconciled.reason) },
+            enrich:
+              enriched.status === "fulfilled"
+                ? enriched.value
+                : { error: String(enriched.reason) },
           }),
         );
       })(),

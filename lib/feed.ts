@@ -15,6 +15,8 @@ export type FeedClip = {
   views: number;
   /** Internal ranking score: completion + skip + vote rate + explore. */
   score: number;
+  /** 1 = held out of every viewer's first 100 reels (weak formats, e.g. older-cast interview Q&A). */
+  hold?: 0 | 1;
   /** Relative pick weight for the client shuffle, (0, 1]. */
   weight: number;
 };

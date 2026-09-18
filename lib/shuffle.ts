@@ -41,14 +41,39 @@ function spreadOut(list: FeedClip[]) {
   return out;
 }
 
+/** Held-back formats stay out of everyone's first this-many reels. */
+export const HOLD_UNTIL = 100;
+const HELD_EVERY = 15; // after the gate, sprinkle one held clip per this many normal ones
+
+/**
+ * Put held clips (feed.json `hold: 1`) after the first HOLD_UNTIL positions, then spread them
+ * thinly. If there aren't HOLD_UNTIL free clips, every held clip simply goes last.
+ */
+function gateHeld(free: FeedClip[], held: FeedClip[]) {
+  if (!held.length) return free;
+  const out = free.slice(0, HOLD_UNTIL);
+  const rest = free.slice(HOLD_UNTIL);
+  let h = 0;
+  rest.forEach((clip, i) => {
+    out.push(clip);
+    if ((i + 1) % HELD_EVERY === 0 && h < held.length) out.push(held[h++]);
+  });
+  while (h < held.length) out.push(held[h++]);
+  return out;
+}
+
 export function orderFeed(clips: FeedClip[], seed: string, seen: Record<string, number>, pinned?: string | null) {
   const rand = rng(seed);
   const ordered = weightedOrder(clips, rand);
   const fresh = ordered.filter((c) => !seen[c.id]);
   const watched = ordered.filter((c) => seen[c.id]).sort((a, b) => seen[a.id] - seen[b.id]);
-  const result = spreadOut(fresh).concat(spreadOut(watched));
+  const ranked = spreadOut(fresh).concat(spreadOut(watched));
+  const result = gateHeld(
+    ranked.filter((c) => c.hold !== 1),
+    ranked.filter((c) => c.hold === 1),
+  );
 
-  // A shared link (?clip=<id>) opens on that clip.
+  // A shared link (?clip=<id>) opens on that clip — even a held one, since it was asked for.
   if (pinned) {
     const i = result.findIndex((c) => c.id === pinned);
     if (i > 0) result.unshift(...result.splice(i, 1));

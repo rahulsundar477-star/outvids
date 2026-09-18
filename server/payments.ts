@@ -15,6 +15,7 @@
  * Switched off until DODO_PAYMENTS_API_KEY, DODO_PAYMENTS_WEBHOOK_KEY and DODO_BID_PRODUCT_ID are set.
  */
 import DodoPayments from "dodopayments";
+import { enrichAndSave } from "./enrich";
 import {
   CATEGORIES,
   isLinkError,
@@ -72,6 +73,7 @@ const ROUTES = new Set([
   "/api/checkout/status",
   "/api/webhooks/dodo",
   "/api/board",
+  "/api/enrich",
 ]);
 export const isPaymentsRoute = (pathname: string) => ROUTES.has(pathname);
 
@@ -201,6 +203,10 @@ export async function handlePayments(
         return request.method === "GET"
           ? await checkoutStatus(url, env, ctx, cfg)
           : json({ error: "method_not_allowed" }, 405);
+      case "/api/enrich":
+        return request.method === "POST"
+          ? await adminEnrich(request, env, ctx, cfg)
+          : json({ error: "method_not_allowed" }, 405);
       case "/api/webhooks/dodo":
         return request.method === "POST"
           ? await dodoWebhook(request, env, ctx, cfg)
@@ -240,22 +246,26 @@ async function queryBoard(
 ): Promise<BoardEntry[]> {
   const since = range === "today" ? startOfUtcDay() : 0;
   const { results } = await env.DB.prepare(
-    `SELECT listing_key AS key,
-            MAX(link) AS link, MAX(brand) AS brand, MAX(category) AS category,
-            SUM(charge_cents) AS total_cents, COUNT(*) AS payments, MIN(paid_at) AS first_paid_at
-       FROM bids
-      WHERE environment = ? AND status = 'paid' AND paid_at >= ?
-      GROUP BY listing_key
+    `SELECT b.listing_key AS key,
+            MAX(b.link) AS link, MAX(b.brand) AS brand, MAX(b.category) AS category,
+            SUM(b.charge_cents) AS total_cents, COUNT(*) AS payments, MIN(b.paid_at) AS first_paid_at,
+            m.name AS name, m.description AS description, m.icon_key AS icon_key, m.fetched_at AS icon_at
+       FROM bids b
+       LEFT JOIN listing_meta m ON m.listing_key = b.listing_key
+      WHERE b.environment = ? AND b.status = 'paid' AND b.paid_at >= ?
+      GROUP BY b.listing_key
       ORDER BY total_cents DESC, first_paid_at ASC
       LIMIT ?`,
   )
     .bind(cfg.environment, since, limit)
-    .all<Omit<BoardEntry, "rank">>();
-  return results.map((r, i) => ({
+    .all<Omit<BoardEntry, "rank"> & { icon_key: string | null; icon_at: number | null }>();
+  return results.map(({ icon_key, icon_at, ...r }, i) => ({
     ...r,
     total_cents: Number(r.total_cents),
     payments: Number(r.payments),
     first_paid_at: Number(r.first_paid_at),
+    // ?v changes whenever the icon is refetched, so a cached copy is never served for a new icon.
+    icon: icon_key ? `/api/icon/${encodeURIComponent(r.key)}?v=${icon_at ?? 0}` : null,
     rank: i + 1,
   }));
 }
@@ -618,6 +628,7 @@ async function checkoutStatus(url: URL, env: Env, ctx: Ctx, cfg: Config) {
         const changed = await syncFromDodo(env, cfg, bid, "status-check");
         if (changed) {
           ctx.waitUntil(purgeBoard(cfg));
+          ctx.waitUntil(enrichPaidBid(env, cfg, bid.id));
           bid =
             (await env.DB.prepare("SELECT * FROM bids WHERE id = ?")
               .bind(bidId)
@@ -962,7 +973,10 @@ async function dodoWebhook(request: Request, env: Env, ctx: Ctx, cfg: Config) {
       webhookId,
     )
     .run();
-  if (result.outcome === "applied") ctx.waitUntil(purgeBoard(cfg));
+  if (result.outcome === "applied") {
+    ctx.waitUntil(purgeBoard(cfg));
+    if (result.bidId) ctx.waitUntil(enrichPaidBid(env, cfg, result.bidId));
+  }
   return json({ ok: true, outcome: result.outcome });
 }
 
@@ -1075,11 +1089,41 @@ async function routeEvent(
   return { outcome: "ignored", detail: `unhandled type ${event.type}` };
 }
 
+/** Fetch brand details for a bid that just became paid. Runs after the response, never blocking it. */
+async function enrichPaidBid(env: Env, cfg: Config, bidId: string) {
+  try {
+    const bid = await env.DB.prepare("SELECT listing_key, link, status FROM bids WHERE id = ?")
+      .bind(bidId)
+      .first<{ listing_key: string; link: string; status: string }>();
+    if (!bid || bid.status !== "paid") return;
+    await enrichAndSave(env, bid.listing_key, bid.link);
+    await purgeBoard(cfg);
+  } catch (err) {
+    console.error(JSON.stringify({ payments: "enrich_failed", bid: bidId, error: errMessage(err) }));
+  }
+}
+
 async function bidByPayment(env: Env, paymentId: string) {
   if (!paymentId) return null;
   return env.DB.prepare("SELECT * FROM bids WHERE payment_id = ?")
     .bind(paymentId)
     .first<BidRow>();
+}
+
+/** POST /api/enrich  { link, listing_key? } — refetch brand details. Authorization: Bearer <RERANK_TOKEN>. */
+async function adminEnrich(request: Request, env: Env, ctx: Ctx, cfg: Config) {
+  const expected = env.RERANK_TOKEN;
+  const given = (request.headers.get("authorization") ?? "").replace(/^Bearer\s+/i, "");
+  if (!expected || given !== expected) return json({ error: "unauthorized" }, 401);
+  const body = await readJson(request);
+  const listing = normalizeListing(String(body?.link ?? ""));
+  if (isLinkError(listing)) return json({ error: "invalid_link", message: listing.error }, 400);
+  const key = typeof body?.listing_key === "string" && body.listing_key ? String(body.listing_key).slice(0, 260) : listing.key;
+
+  const started = Date.now();
+  const r = await enrichAndSave(env, key, listing.link);
+  ctx.waitUntil(purgeBoard(cfg));
+  return json({ ...r, total_ms: Date.now() - started });
 }
 
 // ── cron: reconcile ─────────────────────────────────────────────────────────

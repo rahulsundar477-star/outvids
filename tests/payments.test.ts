@@ -4,7 +4,7 @@
  * Run: npm run test:payments
  */
 import { DatabaseSync } from "node:sqlite";
-import { readFileSync } from "node:fs";
+import { readFileSync, readdirSync } from "node:fs";
 import { Webhook } from "standardwebhooks";
 import { handlePayments, reconcilePayments } from "../server/payments";
 import { dodoState } from "./dodo-mock";
@@ -76,6 +76,32 @@ const cacheStore = new Map<string, Response>();
   },
 };
 
+// R2 stand-in for stored brand icons.
+function r2() {
+  const store = new Map<string, { body: Uint8Array; type?: string }>();
+  return {
+    store,
+    async put(key: string, body: Uint8Array, opts?: { httpMetadata?: { contentType?: string } }) {
+      store.set(key, { body, type: opts?.httpMetadata?.contentType });
+      return { key };
+    },
+    async get(key: string) {
+      const v = store.get(key);
+      return v ? { body: v.body, size: v.body.length } : null;
+    },
+  };
+}
+
+// Outbound fetch is disabled by default; tests opt in per URL.
+export const net = { routes: new Map<string, () => Response>(), calls: [] as string[] };
+globalThis.fetch = (async (input: RequestInfo | URL) => {
+  const url = typeof input === "string" ? input : input instanceof URL ? input.toString() : input.url;
+  net.calls.push(url);
+  const make = net.routes.get(url) ?? net.routes.get(url.replace(/\/$/, "")) ?? net.routes.get(url + "/");
+  if (!make) throw new TypeError(`network disabled in tests: ${url}`);
+  return make();
+}) as typeof fetch;
+
 const WEBHOOK_SECRET =
   "whsec_" +
   Buffer.from("outvids-test-webhook-secret-32bytes!!").toString("base64");
@@ -84,11 +110,14 @@ const ORIGIN = "https://outvids.lol";
 
 function makeEnv(overrides: Record<string, unknown> = {}) {
   const db = new DatabaseSync(":memory:");
-  for (const f of ["migrations/0001_init.sql", "migrations/0002_payments.sql"])
-    db.exec(readFileSync(f, "utf8"));
+  for (const f of readdirSync("migrations")
+    .filter((n) => n.endsWith(".sql"))
+    .sort())
+    db.exec(readFileSync(`migrations/${f}`, "utf8"));
   let limited = false;
   const env = {
     DB: d1(db),
+    CLIPS: r2(),
     PUBLIC_ORIGIN: ORIGIN,
     DODO_ENVIRONMENT: "test_mode",
     DODO_PAYMENTS_API_KEY: "sk_test_mock",
@@ -839,6 +868,66 @@ await test("hourly reconcile: settles missed payments, expires abandoned checkou
   );
   const again = await reconcilePayments(env);
   eq(again, { checked: 0, applied: 0, expired: 0, errored: 0 }, "idempotent");
+});
+
+await test("brand details are fetched once after payment and shown on the board", async () => {
+  const { env, db } = makeEnv();
+  const html = `<!doctype html><html><head>
+    <title>Selvo — Intercom alternative without per-seat fees</title>
+    <meta property="og:site_name" content="Selvo">
+    <meta name="description" content="Support inbox &amp; live chat without per-seat pricing.">
+    <link rel="apple-touch-icon" sizes="180x180" href="/apple-icon.png">
+    <link rel="icon" href="/favicon.ico">
+  </head><body>ignored</body></html>`;
+  net.routes.set("https://brandsite.co/", () => new Response(html, { headers: { "content-type": "text/html; charset=utf-8" } }));
+  net.routes.set("https://brandsite.co/apple-icon.png", () => new Response(new Uint8Array(400).fill(7), { headers: { "content-type": "image/png" } }));
+
+  await paidBid(env, "brandsite.co", 20);
+  const meta = db.prepare("SELECT * FROM listing_meta WHERE listing_key = 'brandsite.co'").get() as Record<string, any>;
+  eq([meta.name, meta.description, meta.status], ["Selvo", "Support inbox & live chat without per-seat pricing.", "ok"], "stored details");
+  eq([meta.icon_key, meta.icon_type, meta.icon_bytes], ["brand-icons/brandsite.co.png", "image/png", 400], "stored icon");
+
+  const b = await board(env);
+  eq(b.entries[0].name, "Selvo", "board name");
+  eq(
+    String(b.entries[0].icon).split("?")[0],
+    "/api/icon/brandsite.co",
+    "board icon path",
+  );
+  eq(/\?v=\d{10,}$/.test(String(b.entries[0].icon)), true, "icon url is versioned");
+  eq(net.calls.filter((u) => u.startsWith("https://brandsite.co")).length, 2, "one page + one icon fetch");
+});
+
+await test("text from a brand page: entities decode, apostrophes survive, markup is stripped", async () => {
+  const { env, db } = makeEnv();
+  const html = [
+    "<!doctype html><html><head>",
+    "<title>Probe A&rsquo;s B&#8217;s C&#x2019;s D’s E&amp;F</title>",
+    '<meta name="description" content="named A&rsquo;s decimal B&#8217;s hex C&#x2019;s literal D’s amp E&amp;F dash G&mdash;H unknown I&zzz;J">',
+    '<link rel="icon" href="/favicon.ico">',
+    "</head><body>x</body></html>",
+  ].join("");
+  net.routes.set("https://probe-entities.com", () => new Response(html, { headers: { "content-type": "text/html" } }));
+  net.routes.set("https://probe-entities.com/favicon.ico", () => new Response(new Uint8Array(200).fill(3), { headers: { "content-type": "image/x-icon" } }));
+
+  await paidBid(env, "probe-entities.com", 10);
+  const meta = db.prepare("SELECT name, description FROM listing_meta WHERE listing_key = 'probe-entities.com'").get() as Record<string, any>;
+  eq(meta.name, "Probe A’s B’s C’s D’s E&F", "title entities");
+  eq(
+    meta.description,
+    "named A’s decimal B’s hex C’s literal D’s amp E&F dash G—H unknown IJ",
+    "description entities",
+  );
+});
+
+await test("a brand site that is down never blocks the payment", async () => {
+  const { env, db } = makeEnv();
+  const { bidId } = await paidBid(env, "offline-brand.com", 15); // no routes registered: every fetch throws
+  eq(bidRow(db, bidId).status, "paid", "payment still paid");
+  const meta = db.prepare("SELECT status, name, icon_key FROM listing_meta WHERE listing_key = 'offline-brand.com'").get() as Record<string, any>;
+  eq(meta.status, "failed", "recorded as failed");
+  const b = await board(env);
+  eq([b.entries[0].key, b.entries[0].icon, b.entries[0].name], ["offline-brand.com", null, null], "board still lists it, without details");
 });
 
 await test("audit trail: every status change has exactly one transition row", async () => {

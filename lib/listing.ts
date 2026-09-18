@@ -220,6 +220,10 @@ export type BoardEntry = {
   total_cents: number;
   payments: number;
   first_paid_at: number;
+  /** Fetched once from the listing's own site after payment (server/enrich.ts). */
+  name?: string | null;
+  description?: string | null;
+  icon?: string | null;
 };
 
 export type Board = {

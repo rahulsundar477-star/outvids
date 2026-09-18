@@ -28,6 +28,17 @@ const WEIGHTS = { completion: 0.5, noSkip: 0.25, vote: 0.25 };
 const EXPLORE = { k: 0.12, cap: 0.25 };
 const WEIGHT_TEMPERATURE = 0.12; // client pick weight = exp((score − best) / T)
 
+/**
+ * Formats held out of every viewer's first 100 reels: the interview / gameshow Q&A style with an
+ * older cast, which renders worst (faces go plastic). They still rank and still play, just later.
+ * The tags come from manifest.json, so this is one place to edit.
+ */
+export function isHeldBack(row: ManifestRow) {
+  const spoken = row.tag_speech === "single" || row.tag_speech === "exchange";
+  const interviewTrack = row.track === "pod" || row.track === "rc";
+  return row.tag_age === "older" && spoken && interviewTrack;
+}
+
 async function voteCounts(db: D1Database): Promise<Map<string, number>> {
   const { results } = await db.prepare("SELECT clip_id, COUNT(*) AS n FROM votes GROUP BY clip_id").all<{ clip_id: string; n: number }>();
   return new Map(results.map((r) => [r.clip_id, Number(r.n)]));
@@ -110,6 +121,7 @@ export async function rerank(env: RankEnv, trigger: Feed["trigger"]) {
     frame: c.row.tag_frame,
     engine: c.row.engine,
     duration: c.row.duration,
+    hold: isHeldBack(c.row) ? 1 : 0,
     votes: c.votes,
     views: Math.round(c.stat.views),
     score: round(c.score),

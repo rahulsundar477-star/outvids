@@ -13,7 +13,11 @@ const FEED_CACHE_CONTROL =
 const edgeCache = () => (caches as unknown as { default: Cache }).default;
 
 export function isHotPath(pathname: string) {
-  return pathname === "/feed.json" || pathname.startsWith("/api/stream/");
+  return (
+    pathname === "/feed.json" ||
+    pathname.startsWith("/api/stream/") ||
+    pathname.startsWith("/api/icon/")
+  );
 }
 
 export async function handleHotPath(
@@ -29,6 +33,7 @@ export async function handleHotPath(
     });
   }
   if (url.pathname === "/feed.json") return feed(request, url, env, ctx);
+  if (url.pathname.startsWith("/api/icon/")) return brandIcon(request, url, env, ctx);
   return stream(request, url, env, ctx);
 }
 
@@ -146,4 +151,33 @@ function videoHeaders(obj: R2Object) {
   if (!headers.has("Content-Type")) headers.set("Content-Type", "video/mp4");
   headers.set("Cache-Control", "public, max-age=31536000, immutable");
   return headers;
+}
+
+// ── /api/icon/:listing_key: brand icon stored by server/enrich.ts ────────────
+
+async function brandIcon(request: Request, url: URL, env: CloudflareEnv, ctx: ExecutionContext) {
+  const key = decodeURIComponent(url.pathname.slice("/api/icon/".length)).slice(0, 260);
+  if (!key || key.includes("..")) return new Response("bad key", { status: 400 });
+
+  const cache = edgeCache();
+  const cacheKey = `${url.origin}/api/icon/${encodeURIComponent(key)}?v=${url.searchParams.get("v") ?? "0"}`;
+  const hit = await cache.match(cacheKey);
+  if (hit) return hit;
+
+  const row = await env.DB.prepare("SELECT icon_key FROM listing_meta WHERE listing_key = ?")
+    .bind(key)
+    .first<{ icon_key: string | null }>();
+  if (!row?.icon_key) return new Response(null, { status: 404 });
+  const obj = await env.CLIPS.get(row.icon_key);
+  if (!obj) return new Response(null, { status: 404 });
+
+  const headers = new Headers();
+  obj.writeHttpMetadata(headers);
+  headers.set("ETag", obj.httpEtag);
+  headers.set("Cache-Control", "public, max-age=86400");
+  headers.set("X-Content-Type-Options", "nosniff");
+  if (!headers.has("Content-Type")) headers.set("Content-Type", "image/png");
+  const res = new Response(obj.body, { headers });
+  ctx.waitUntil(cache.put(cacheKey, res.clone()));
+  return res;
 }

@@ -13,7 +13,9 @@
     "db:snapshot": "node scripts-db-snapshot.mjs",
     "test:payments": "node tests/run-payments.mjs",
     "golive:check": "node scripts-golive.mjs check",
-    "golive:clean-test": "node scripts-golive.mjs clean-test"
+    "golive:clean-test": "node scripts-golive.mjs clean-test",
+    "test:feed": "node tests/run-feed.mjs",
+    "test": "npm run test:payments && npm run test:feed"
   },
   "dependencies": {
     "@opennextjs/cloudflare": "^1.20.6",

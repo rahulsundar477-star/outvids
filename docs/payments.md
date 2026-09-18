@@ -23,6 +23,23 @@
 
 Every status change is a guarded UPDATE plus a `bid_transitions` audit row in one D1 batch. Raw signed webhook bodies are kept in `payment_events`.
 
+## Brand details (name, description, icon)
+
+When a payment is confirmed, the Worker fetches the listing's own site **once** and stores its name,
+description and icon (`server/enrich.ts`, table `listing_meta`, icons in R2 under `brand-icons/`).
+
+- Runs after the response, never on the swipe path and never while a buyer waits.
+- Budgets: 64 KB of HTML, 200 KB for an icon, 6s/5s timeouts, regex parsing (no DOM).
+- Icon preference: `apple-touch-icon` → largest declared icon → `/favicon.ico` → Google's favicon service.
+- The icon is served by us at `/api/icon/<listing_key>?v=<fetched_at>` (cached a day, version changes on refetch),
+  so visitors never hit the brand's server.
+- If the site is slow, blocked or down, the payment is unaffected: the row records `failed`, the board shows the
+  listing without details, and the hourly cron retries (up to 3 attempts).
+- Refresh by hand: `POST /api/enrich {"link": "https://brand.com"}` with `Authorization: Bearer <RERANK_TOKEN>`.
+  Add `raw` in the response to see exactly what was parsed.
+
+Measured on 5 live sites from outbid.lol: **4-9ms CPU** each, 1-5s wall time (waiting on their servers, which costs nothing).
+
 ## Config
 
 | Name                        | Where                | Value                                                                                                |

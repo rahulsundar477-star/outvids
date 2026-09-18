@@ -539,6 +539,8 @@ export default function BoardScreen(p: Props) {
           >
             {entries.map((e, i) => {
               const first = e.rank === 1;
+              const title = e.name || e.brand;
+              const host = e.link.replace(/^https?:\/\//, "").replace(/\/$/, "");
               return (
                 <div
                   key={e.key}
@@ -546,7 +548,7 @@ export default function BoardScreen(p: Props) {
                   style={{
                     animationDelay: `calc(var(--duration-stagger) * ${Math.min(i, 6)})`,
                     display: "flex",
-                    alignItems: "center",
+                    alignItems: "flex-start",
                     gap: 12,
                     padding: 14,
                     borderRadius: 22,
@@ -559,16 +561,54 @@ export default function BoardScreen(p: Props) {
                   <span
                     style={{
                       flex: "none",
-                      width: 34,
-                      ...heading(15, 700),
-                      color: first
-                        ? "var(--color-accent-300)"
-                        : "var(--color-neutral-700)",
+                      width: 22,
+                      paddingTop: 12,
+                      ...heading(13, 700),
+                      color: first ? "var(--color-accent-300)" : "var(--color-neutral-700)",
                       ...tabular,
                     }}
                   >
-                    #{e.rank}
+                    {e.rank}
                   </span>
+
+                  {e.icon ? (
+                    <img
+                      src={e.icon}
+                      alt=""
+                      width={44}
+                      height={44}
+                      loading="lazy"
+                      decoding="async"
+                      style={{
+                        flex: "none",
+                        width: 44,
+                        height: 44,
+                        borderRadius: 13,
+                        objectFit: "cover",
+                        background: "rgba(245,241,234,.06)",
+                        border: "1px solid rgba(245,241,234,.1)",
+                      }}
+                    />
+                  ) : (
+                    <span
+                      style={{
+                        flex: "none",
+                        width: 44,
+                        height: 44,
+                        borderRadius: 13,
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        background: "linear-gradient(145deg,#3A3634,#1C1A19)",
+                        border: "1px solid rgba(245,241,234,.1)",
+                        ...heading(16, 700),
+                        color: "var(--color-neutral-800)",
+                      }}
+                    >
+                      {title.replace(/^https?:\/\//, "").charAt(0).toUpperCase()}
+                    </span>
+                  )}
+
                   <span style={{ flex: 1, minWidth: 0 }}>
                     <a
                       href={e.link}
@@ -576,35 +616,54 @@ export default function BoardScreen(p: Props) {
                       rel="sponsored noopener noreferrer"
                       style={{
                         display: "block",
-                        ...heading(15),
+                        ...heading(14.5),
                         color: "var(--color-text)",
                         overflow: "hidden",
                         textOverflow: "ellipsis",
                         whiteSpace: "nowrap",
                       }}
                     >
-                      {e.brand} ↗
+                      {title} ↗
                     </a>
+                    {e.description && (
+                      <span
+                        style={{
+                          display: "block",
+                          fontSize: 12.5,
+                          color: "var(--color-neutral-700)",
+                          lineHeight: 1.35,
+                          marginTop: 3,
+                          overflow: "hidden",
+                          textOverflow: "ellipsis",
+                          whiteSpace: "nowrap",
+                        }}
+                      >
+                        {e.description}
+                      </span>
+                    )}
                     <span
                       style={{
-                        display: "block",
-                        fontSize: 12,
+                        display: "flex",
+                        alignItems: "center",
+                        gap: 7,
+                        marginTop: 5,
+                        fontSize: 11.5,
                         color: "var(--color-neutral-700)",
-                        marginTop: 3,
                       }}
                     >
-                      {e.category}
+                      <span style={{ color: "var(--color-accent-300)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: "50%" }}>{host}</span>
+                      <span>·</span>
+                      <span>{e.category}</span>
                     </span>
                   </span>
+
                   <span style={{ flex: "none", textAlign: "right" }}>
                     <span
                       style={{
                         display: "block",
                         ...heading(18, 700),
                         letterSpacing: "-.03em",
-                        color: first
-                          ? "var(--color-accent-300)"
-                          : "var(--color-text)",
+                        color: first ? "var(--color-accent-300)" : "var(--color-text)",
                         ...tabular,
                       }}
                     >
@@ -612,12 +671,7 @@ export default function BoardScreen(p: Props) {
                     </span>
                     <button
                       onClick={() => {
-                        p.setBid(
-                          Math.max(
-                            MIN_LISTING_CENTS,
-                            e.total_cents + TAKE_TOP_MARGIN_CENTS,
-                          ) / 100,
-                        );
+                        p.setBid(Math.max(MIN_LISTING_CENTS, e.total_cents + TAKE_TOP_MARGIN_CENTS) / 100);
                         p.linkRef.current?.focus();
                       }}
                       className="hov-fill-edge"
