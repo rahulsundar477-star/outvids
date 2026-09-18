@@ -1,0 +1,47 @@
+# ── Secrets: never commit ───────────────────────────────────────────────────
+.env
+.env.*
+*.env
+.dev.vars
+.dev.vars.*
+secrets/
+*.pem
+*.key
+*_rsa
+id_*
+# local wrangler state (cached R2 blobs, sessions)
+.wrangler/
+
+# ── Build output ────────────────────────────────────────────────────────────
+.next/
+.open-next/
+out/
+dist/
+build/
+.tests/
+*.tsbuildinfo
+next-env.d.ts
+
+# ── Dependencies ────────────────────────────────────────────────────────────
+node_modules/
+.pnp
+.pnp.js
+
+# ── Local tooling / machine-specific ────────────────────────────────────────
+.claude/settings.local.json
+CLAUDE.local.md
+# vendored third-party skills
+.agents/
+.claude/skills/
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+*.log
+npm-debug.log*
+
+# ── Data snapshots (can hold live rows) ─────────────────────────────────────
+*.sqlite
+*.sqlite3
+*.db
+manifest.sqlite

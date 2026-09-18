@@ -1,0 +1,58 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "outvids",
+  // worker.ts wraps the OpenNext build and adds the hourly re-rank (scheduled handler).
+  "main": "worker.ts",
+  "compatibility_date": "2026-09-01",
+  "compatibility_flags": ["nodejs_compat", "global_fetch_strictly_public"],
+  "assets": {
+    "directory": ".open-next/assets",
+    "binding": "ASSETS",
+  },
+  // manifest.json + videos/<clip_id with / → _>.mp4 (platform/upload_r2.py), and feed.json (written by the re-rank job).
+  // remote: `npm run dev` reads the real bucket and database too (needs `wrangler login`).
+  "r2_buckets": [
+    { "binding": "CLIPS", "bucket_name": "clips", "remote": true },
+  ],
+  // Durable, tiny, off the swipe path: unique votes + ranking snapshots.
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "outvids",
+      "database_id": "84e14d12-c064-4ace-b5d2-9f095671a552",
+      "migrations_dir": "migrations",
+      "remote": true,
+    },
+  ],
+  // One beacon per clip leave. Needs Analytics Engine enabled once on the account (dashboard → Workers → Analytics Engine),
+  // then uncomment. Until then /api/beacon accepts beacons and drops them.
+  // "analytics_engine_datasets": [
+  //   { "binding": "BEACONS", "dataset": "outvids_beacons" }
+  // ],
+  "triggers": {
+    "crons": ["0 * * * *"],
+  },
+  "vars": {
+    // Used by the re-rank job to query Analytics Engine over its SQL API (secret: CF_ANALYTICS_TOKEN).
+    "OUTVIDS_ACCOUNT_ID": "3805ce8c26cbe0f2d05d0c2559973d27",
+    "PUBLIC_ORIGIN": "https://outvids.lol",
+    // Dodo Payments (Outbid checkout). Stays "test_mode" until the live account is approved and tested.
+    // Payments switch on only when DODO_BID_PRODUCT_ID is set here AND the two secrets exist:
+    //   npx wrangler secret put DODO_PAYMENTS_API_KEY
+    //   npx wrangler secret put DODO_PAYMENTS_WEBHOOK_KEY
+    "DODO_ENVIRONMENT": "test_mode",
+    "DODO_BID_PRODUCT_ID": "pdt_0Nno7geQl7XrtnPp4p8VS",
+    "DODO_BUSINESS_ID": "bus_zZcJA2RqYtLEnVoHEj5N8",
+  },
+  // 10 checkout attempts per IP per minute.
+  "ratelimits": [
+    {
+      "name": "CHECKOUT_RL",
+      "namespace_id": "1001",
+      "simple": { "limit": 10, "period": 60 },
+    },
+  ],
+  "services": [{ "binding": "WORKER_SELF_REFERENCE", "service": "outvids" }],
+  "routes": [{ "pattern": "outvids.lol", "custom_domain": true }],
+  "observability": { "enabled": true },
+}

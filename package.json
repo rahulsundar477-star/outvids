@@ -1,0 +1,30 @@
+{
+  "name": "outvids",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev -p 3100",
+    "build": "next build",
+    "start": "next start -p 3100",
+    "preview": "opennextjs-cloudflare build && opennextjs-cloudflare preview",
+    "deploy": "opennextjs-cloudflare build && opennextjs-cloudflare deploy",
+    "cf-typegen": "wrangler types --env-interface CloudflareEnv cloudflare-env.d.ts",
+    "indexnow": "node scripts-indexnow.mjs",
+    "db:snapshot": "node scripts-db-snapshot.mjs",
+    "test:payments": "node tests/run-payments.mjs"
+  },
+  "dependencies": {
+    "@opennextjs/cloudflare": "^1.20.6",
+    "dodopayments": "^2.50.0",
+    "next": "^16.3.5",
+    "react": "^19.3.0",
+    "react-dom": "^19.3.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.20.3",
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
+    "typescript": "^7.0.2",
+    "wrangler": "^4.133.0"
+  }
+}
