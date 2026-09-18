@@ -45,3 +45,6 @@ npm-debug.log*
 *.sqlite3
 *.db
 manifest.sqlite
+
+# exported test data (contains customer details)
+backups/

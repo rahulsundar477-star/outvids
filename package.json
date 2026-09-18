@@ -11,7 +11,9 @@
     "cf-typegen": "wrangler types --env-interface CloudflareEnv cloudflare-env.d.ts",
     "indexnow": "node scripts-indexnow.mjs",
     "db:snapshot": "node scripts-db-snapshot.mjs",
-    "test:payments": "node tests/run-payments.mjs"
+    "test:payments": "node tests/run-payments.mjs",
+    "golive:check": "node scripts-golive.mjs check",
+    "golive:clean-test": "node scripts-golive.mjs clean-test"
   },
   "dependencies": {
     "@opennextjs/cloudflare": "^1.20.6",

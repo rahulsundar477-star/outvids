@@ -207,8 +207,23 @@ export default function PaySheet({
           </div>
 
           {testMode && enabled && (
-            <div role="note" style={{ marginTop: 12, padding: "10px 14px", borderRadius: 14, background: "rgba(250,204,21,.08)", border: "1px solid rgba(250,204,21,.3)", color: "#FACC15", fontSize: 12.5, lineHeight: 1.45 }}>
-              Test mode: use a Dodo test card. No real money moves.
+            <div
+              role="note"
+              style={{
+                marginTop: 12,
+                padding: "11px 14px",
+                borderRadius: 14,
+                background: "rgba(250,204,21,.08)",
+                border: "1px solid rgba(250,204,21,.3)",
+                color: "#FACC15",
+                fontSize: 12.5,
+                lineHeight: 1.5,
+              }}
+            >
+              <b style={{ fontWeight: 700 }}>Test mode — no real money.</b>
+              <br />
+              Card <span style={{ ...tabular, fontWeight: 600 }}>4242 4242 4242 4242</span>, expiry{" "}
+              <span style={tabular}>06/32</span>, CVV <span style={tabular}>123</span>.
             </div>
           )}
 

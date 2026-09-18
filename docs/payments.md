@@ -48,15 +48,35 @@ Payments switch off automatically if the key, webhook key or product id is missi
     SELECT webhook_id, type, outcome, detail FROM payment_events ORDER BY received_at DESC LIMIT 5;
     ```
 
+## Testing (open to anyone, right now)
+
+Test mode is deliberately open: anyone can put a listing on the board with a Dodo test card, and the board and pay sheet both say "Test mode".
+
+- Card `4242 4242 4242 4242`, expiry `06/32`, CVV `123` (shown in the pay sheet).
+- Declined card: `4000 0000 0000 0002`. UPI: `success@upi` / `failure@upi` (billing country IN, INR).
+- Test listings never sponsor the feed; only live-mode payments do that.
+
+Check what exists at any time:
+
+```bash
+npm run golive:check
+```
+
 ## Going live (once the Dodo account is approved)
 
-1. In **live** mode, run `DODO_ENVIRONMENT=live_mode DODO_PAYMENTS_API_KEY=<live key> node scripts-dodo-setup.mjs`. It creates the live product and webhook, and stores the live webhook secret.
-2. Store the live key: `npx wrangler secret put DODO_PAYMENTS_API_KEY`.
-3. In `wrangler.jsonc`:
-   - set `DODO_ENVIRONMENT` to `live_mode`;
-   - set `DODO_BID_PRODUCT_ID` to the live product id the script printed;
-   - set `DODO_BUSINESS_ID` to the live business id.
-4. `npm run deploy`, then read the bindings list.
-5. Make one small real payment, then confirm the refund flow from the Dodo dashboard. The listing should drop off the board.
+1. **Create the live product and webhook**, and store the live webhook secret:
+   ```bash
+   DODO_ENVIRONMENT=live_mode DODO_PAYMENTS_API_KEY=<live key> node scripts-dodo-setup.mjs
+   ```
+2. **Store the live API key:** `npx wrangler secret put DODO_PAYMENTS_API_KEY`
+3. **Edit `wrangler.jsonc`:** `DODO_ENVIRONMENT` to `live_mode`, plus the live `DODO_BID_PRODUCT_ID` and `DODO_BUSINESS_ID` the script printed.
+4. **Deploy:** `npm run deploy`, then read the bindings list.
+5. **Wipe every test listing, payment and audit row** (writes a JSON backup to `backups/` first, and only ever touches `environment = 'test_mode'`):
+   ```bash
+   npm run golive:clean-test          # dry run: shows what goes
+   npm run golive:clean-test -- --yes # back up, then delete
+   ```
+6. **Confirm:** `npm run golive:check` shows mode `live_mode` and no test rows, and `/api/board` is empty.
+7. **Make one small real payment,** then refund it from the Dodo dashboard and confirm the listing leaves the board.
 
-Test-mode bids stay in D1 but never show on the live board, because the board filters by environment.
+Even before step 5, a live-mode board never shows test listings — the board filters by environment. The clean-up is for a genuinely empty start.
