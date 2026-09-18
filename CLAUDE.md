@@ -29,6 +29,7 @@ It's a solo project, mobile-first, and every video is 9:16.
   - the feed order is internal: completion, skip, vote rate and explore.
   - Never rank on watch time alone, and never ship a feed that ignores Outvids.
 - **One beacon per leave,** never a stream of `timeupdate`.
+- **Weak formats are held back, not deleted.** `isHeldBack()` in `lib/rank.ts` flags a cohort (today: older-cast interview/gameshow Q&A in the pod and rc tracks, 7 clips) as `hold: 1` in feed.json, and `gateHeld()` in `lib/shuffle.ts` keeps those out of every viewer's first 100 reels, then sprinkles them one per 15. A shared `?clip=` link still opens a held clip. Edit the cohort in that one function, then re-rank. `npm run test:feed` guards the rule.
 - **The in-feed Outbid slide** (`components/PromoSlide.tsx`) sits at seeded positions from `lib/promo.ts`: first after 3-4 reels, then 6-12 apart, different per viewer per day. It carries no video, no watch tracking and no extra request — it reuses the loaded board.
 - **The intro card** (`components/IntroCard.tsx`) shows once per device, 2.2s after the first reel, and is remembered in `device.intro`.
 

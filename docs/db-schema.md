@@ -10,7 +10,8 @@ Four stores. Only one of them (R2 `feed.json`) sits on the swipe path.
   - The public id is the file stem (`pod_A2b`), served at `/api/stream/<id>`.
 - `feed.json`: the ranked list, written **only** by `lib/rank.ts`. Its shape is `Feed` in `lib/feed.ts`:
   `{ v, generated_at, trigger (cron|upload|manual|bootstrap), source (votes|analytics+votes), count, clips[] }`
-  - Each clip has `id, url, track, setting, people, frame, engine, duration, votes, views, score, weight`.
+  - Each clip has `id, url, track, setting, people, frame, engine, duration, votes, views, score, weight, hold`.
+  - `hold: 1` = held out of every viewer's first 100 reels (see `isHeldBack` in `lib/rank.ts`).
 
 ## D1 `outvids` (binding `DB`, migrations in `migrations/`)
 
