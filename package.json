@@ -4,6 +4,8 @@
   "private": true,
   "scripts": {
     "dev": "next dev -p 3100",
+    "dev:local": "node scripts-dev-local.mjs",
+    "dev:seed": "node scripts-local-seed.mjs",
     "build": "next build",
     "start": "next start -p 3100",
     "preview": "opennextjs-cloudflare build && opennextjs-cloudflare preview",
@@ -15,6 +17,7 @@
     "golive:check": "node scripts-golive.mjs check",
     "golive:clean-test": "node scripts-golive.mjs clean-test",
     "test:feed": "node tests/run-feed.mjs",
+    "bench:enrich": "node tests/run-bench.mjs",
     "test": "npm run test:payments && npm run test:feed"
   },
   "dependencies": {
