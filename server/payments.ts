@@ -249,7 +249,8 @@ async function queryBoard(
     `SELECT b.listing_key AS key,
             MAX(b.link) AS link, MAX(b.brand) AS brand, MAX(b.category) AS category,
             SUM(b.charge_cents) AS total_cents, COUNT(*) AS payments, MIN(b.paid_at) AS first_paid_at,
-            m.name AS name, m.description AS description, m.icon_key AS icon_key, m.fetched_at AS icon_at
+            m.name AS name, m.description AS description, m.icon_key AS icon_key, m.fetched_at AS icon_at,
+            MIN(m.icon_w, m.icon_h) AS icon_px
        FROM bids b
        LEFT JOIN listing_meta m ON m.listing_key = b.listing_key
       WHERE b.environment = ? AND b.status = 'paid' AND b.paid_at >= ?
@@ -266,6 +267,7 @@ async function queryBoard(
     first_paid_at: Number(r.first_paid_at),
     // ?v changes whenever the icon is refetched, so a cached copy is never served for a new icon.
     icon: icon_key ? `/api/icon/${encodeURIComponent(r.key)}?v=${icon_at ?? 0}` : null,
+    icon_px: icon_key && r.icon_px !== null ? Number(r.icon_px) : null,
     rank: i + 1,
   }));
 }

@@ -29,16 +29,25 @@ When a payment is confirmed, the Worker fetches the listing's own site **once** 
 description and icon (`server/enrich.ts`, table `listing_meta`, icons in R2 under `brand-icons/`).
 
 - Runs after the response, never on the swipe path and never while a buyer waits.
-- Budgets: 64 KB of HTML, 200 KB for an icon, 6s/5s timeouts, regex parsing (no DOM).
-- Icon preference: `apple-touch-icon` → largest declared icon → `/favicon.ico` → Google's favicon service.
+- Budgets: 64 KB of HTML, 300 KB per icon and at most 4 icon downloads, 8s/5s timeouts, regex parsing (no DOM).
+- **Icon quality.** Candidates come from the `<link rel=icon>` tags, the web app manifest (usually where the
+  192 and 512px icons are), `/apple-touch-icon.png` and `/favicon.ico`. Each download's real pixel size is read
+  from its own file header (`imageSize()` — no decoding), and the first one at 128px or better wins; otherwise
+  the biggest of the four does. SVG counts as unbeatable. The size is stored in `listing_meta.icon_w/icon_h`,
+  and the board insets anything under 96px rather than stretching it.
+- **Sites that block us** (403 is common) still get a logo: the favicon service is always tried when nothing
+  else reached 128px, including when the page fetch itself failed. That row is `partial` — icon, no text.
 - The icon is served by us at `/api/icon/<listing_key>?v=<fetched_at>` (cached a day, version changes on refetch),
   so visitors never hit the brand's server.
-- If the site is slow, blocked or down, the payment is unaffected: the row records `failed`, the board shows the
-  listing without details, and the hourly cron retries (up to 3 attempts).
+- If the site is slow, blocked or down, the payment is unaffected: the row records `failed` (or `partial` when
+  only the icon came through), the board shows the listing with what it has, and the hourly cron retries a
+  `failed` row up to 3 times.
 - Refresh by hand: `POST /api/enrich {"link": "https://brand.com"}` with `Authorization: Bearer <RERANK_TOKEN>`.
   Add `raw` in the response to see exactly what was parsed.
 
-Measured on 5 live sites from outbid.lol: **4-9ms CPU** each, 1-5s wall time (waiting on their servers, which costs nothing).
+Measured on 5 live sites from outbid.lol: **4-9ms CPU** each, 1-5s wall time (waiting on their servers, which
+costs nothing). A later run over 16 sites (outbid.lol's own board) returned 512x512 icons for BotSeen, RankControl
+and Tutti, 192x192 for Outrank and inetGeek, and the service fallback at 256x256 for the sites that blocked us.
 
 ## Config
 
@@ -55,7 +64,7 @@ Payments switch off automatically if the key, webhook key or product id is missi
 
 ## Test it
 
-- **Unit and integration:** `npm run test:payments` runs 19 scenarios against real SQLite with the migrations, real signature verification, and mocked Dodo network calls.
+- **Unit and integration:** `npm run test:payments` runs 25 scenarios against real SQLite with the migrations, real signature verification, and mocked Dodo network calls.
 - **Real test-mode payment:** open outvids.lol → Outbid → add a link → Continue to secure checkout.
   - Pay with a Dodo test card (see Dodo's testing docs).
   - The return page should go from "Confirming" to "You're #N", and the listing appears on the board with the Test mode badge.

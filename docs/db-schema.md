@@ -26,7 +26,8 @@ bids            (id PK 'bid_<hex>', idempotency_key UNIQUE, environment, listing
                  settlement_amount, settlement_currency, created_at, updated_at, paid_at, last_checked_at)
 payment_events  (webhook_id PK, type, payment_id, bid_id, outcome received|applied|ignored|error, detail, payload, attempts, received_at, processed_at)
 bid_transitions (id PK, bid_id, from_status, to_status, source checkout|webhook|status-check|reconcile, ref, at)  -- append-only audit
-listing_meta    (listing_key PK, name, description, icon_key, icon_type, icon_bytes, source_url, status ok|partial|failed, error, attempts, fetched_at)  -- fetched from the brand's own site
+listing_meta    (listing_key PK, name, description, icon_key, icon_type, icon_bytes, icon_w, icon_h,
+                 source_url, status ok|partial|failed, error, attempts, fetched_at)  -- fetched from the brand's own site
 ```
 
 - Bid status: `created → pending → paid | failed | cancelled | expired | error`. After paid: `refunded | disputed → paid | chargeback`. `review` = succeeded but mismatched, held off the board.

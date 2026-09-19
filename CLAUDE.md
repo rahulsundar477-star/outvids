@@ -15,6 +15,8 @@ It's a solo project, mobile-first, and every video is 9:16.
 ## Commands
 
 - `npm run dev` runs on :3100 and hits the **production** R2 and D1 (`remote: true`).
+- `npm run dev:local` runs the same app on :3100 against **local** R2, D1 and cache only (`wrangler.local.jsonc`), with the Worker on :8787 answering the board, icons, feed and stream.
+- `npm run dev:seed` fills those local stores with sample listings and the live ranked feed.
 - `npm run deploy` builds with OpenNext and runs wrangler deploy.
 - `npm run db:snapshot` refreshes the read-only D1 copy the `db` MCP reads.
 - `npm run indexnow` pings Bing and others after a deploy that changes pages.
@@ -44,7 +46,8 @@ It's a solo project, mobile-first, and every video is 9:16.
 - **NEVER say a payment happened unless the server verified it.** Only a `paid` bid in D1 counts; never trust Dodo's `?status=` return param. When checkout fails or is off, the copy must say nothing was charged.
 - **Money code changes need `npm run test:payments` green.** `server/payments.ts` is plain Worker code routed in `worker.ts`: never move it into Next.js route handlers (CPU limit).
 - **Test-mode listings must be labelled** and must never sponsor the feed.
-- **Dev writes to production.** A vote or rerank on localhost lands in live D1. Use `on:false` or delete the test data afterwards, and say so.
+- **Dev writes to production.** A vote or rerank under `npm run dev` lands in live D1. Use `npm run dev:local` for anything that writes, or delete the test data afterwards and say so.
+- **UI work belongs in `npm run dev:local`.** It has hot reload and sample listings, and it cannot reach production: no binding in `wrangler.local.jsonc` is remote. Switch its `DODO_ENVIRONMENT` to `live_mode` to see the board and feed as they look after go-live.
 - **Stop `next dev` before `npm run deploy`.** Its workerd process locks `.open-next`, and the build fails with EPERM (Windows).
 - **After a deploy, read the bindings list.** Confirm `env.CLIPS`, `env.DB` and the cron are there. The first deploy went out without the API and the user saw "videos are not coming".
 - **Don't name a Worker var `CF_ACCOUNT_ID`.** Wrangler hijacks that name as its own account setting. Use `OUTVIDS_ACCOUNT_ID`.
@@ -64,7 +67,7 @@ It's a solo project, mobile-first, and every video is 9:16.
 - **Tokens:** the dark palette tokens in `:root` of `globals.css` (accent `#FF4D1C`, bg `#0B0A0A`), Instrument Sans, and the flame icon as the mark.
 - **Motion:** use the `transitions-polish` tokens (`--duration-*`, `--ease-*`). Closes are faster than opens, staggers are 40ms, and prefers-reduced-motion is respected.
 - **Mobile:** respect safe-area insets, use `100dvh`, keep inputs at 16px or larger, and gate hover behind `(hover: hover)`.
-- **Design source:** `Outvids.dc.html` (the newer export), not `Outvids App.html`.
+- **Design source:** the exports in the user Downloads folder. `Outvids App.html` holds the current board spec (row = logo, then rank + name + price on one line, tagline under it, meta row, then the Outbid pill); `Outvids.dc.html` is the standalone feed export.
 
 ## Voice
 

@@ -29,7 +29,9 @@ Ranking lives in `lib/rank.ts`: Bayesian completion and skip rates, the Outvid r
 
 ```bash
 npm run dev            # localhost:3100 (uses the production R2 and D1)
-npm run test:payments  # 19 payment scenarios, isolated SQLite + mocked Dodo
+npm run dev:seed       # sample listings + the live feed into the LOCAL stores
+npm run dev:local      # localhost:3100 on local data only, hot reload, nothing can reach production
+npm run test:payments  # 23 payment scenarios, isolated SQLite + mocked Dodo
 npm run deploy         # OpenNext build + wrangler deploy
 npm run indexnow       # ping IndexNow after a deploy that changes pages
 ```

@@ -13,7 +13,7 @@ import {
   type Board,
 } from "@/lib/listing";
 import { GlobeIcon } from "./icons";
-import { ctaButton, heading, tabular } from "./styles";
+import { ctaButton, heading, mono, tabular } from "./styles";
 
 export type BoardRange = "all" | "today";
 
@@ -122,7 +122,7 @@ export default function BoardScreen(p: Props) {
           <div style={{ display: "flex", justifyContent: "center", marginTop: 10 }}>
             <span role="note" style={{ display: "inline-flex", alignItems: "center", gap: 7, padding: "6px 12px", borderRadius: 999, background: "rgba(250,204,21,.10)", border: "1px solid rgba(250,204,21,.35)", color: "#FACC15", fontSize: 12, fontWeight: 600 }}>
               <span style={{ width: 6, height: 6, borderRadius: "50%", background: "#FACC15" }} />
-              Test mode · no real charges · listings here are test money
+              Test mode · no real charges
             </span>
           </div>
         )}
@@ -174,7 +174,7 @@ export default function BoardScreen(p: Props) {
               lineHeight: 1.1,
             }}
           >
-            {prior > 0 ? "Raise your listing to" : `Outvid #${rank} for`}
+            {prior > 0 ? "Raise your listing to" : `Claim #${rank} for`}
           </div>
           <div
             style={{
@@ -541,98 +541,130 @@ export default function BoardScreen(p: Props) {
               const first = e.rank === 1;
               const title = e.name || e.brand;
               const host = e.link.replace(/^https?:\/\//, "").replace(/\/$/, "");
+              const next = Math.max(MIN_LISTING_CENTS, e.total_cents + TAKE_TOP_MARGIN_CENTS);
+              const takeIt = (ev: { preventDefault: () => void; stopPropagation: () => void }) => {
+                ev.preventDefault();
+                ev.stopPropagation();
+                p.setBid(next / 100);
+                p.linkRef.current?.focus();
+              };
               return (
-                <div
+                <a
                   key={e.key}
-                  className="ov-reveal"
+                  href={e.link}
+                  target="_blank"
+                  rel="sponsored noopener noreferrer"
+                  className="ov-reveal hov-lift"
                   style={{
                     animationDelay: `calc(var(--duration-stagger) * ${Math.min(i, 6)})`,
+                    position: "relative",
+                    overflow: "hidden",
                     display: "flex",
                     alignItems: "flex-start",
                     gap: 12,
                     padding: 14,
                     borderRadius: 22,
+                    textDecoration: "none",
+                    color: "var(--color-text)",
                     background: first
                       ? "radial-gradient(110% 130% at 0% 0%, rgba(255,77,28,.16), rgba(255,77,28,.03) 62%), linear-gradient(180deg, rgba(245,241,234,.05), rgba(245,241,234,.012))"
                       : "linear-gradient(180deg, rgba(245,241,234,.045), rgba(245,241,234,.012))",
                     border: `1px solid ${first ? "rgba(255,77,28,.34)" : "rgba(245,241,234,.08)"}`,
+                    boxShadow: first
+                      ? "inset 0 1px 0 rgba(255,138,102,.22), 0 20px 46px rgba(0,0,0,.5)"
+                      : "inset 0 1px 0 rgba(245,241,234,.06), 0 12px 30px rgba(0,0,0,.38)",
                   }}
                 >
-                  <span
-                    style={{
-                      flex: "none",
-                      width: 22,
-                      paddingTop: 12,
-                      ...heading(13, 700),
-                      color: first ? "var(--color-accent-300)" : "var(--color-neutral-700)",
-                      ...tabular,
-                    }}
-                  >
-                    {e.rank}
-                  </span>
-
                   {e.icon ? (
-                    <img
-                      src={e.icon}
-                      alt=""
-                      width={44}
-                      height={44}
-                      loading="lazy"
-                      decoding="async"
+                    // A 32px favicon stretched to 52px goes soft, so small icons sit at their own
+                    // size on the tile instead. icon_px is 0 for SVG, which scales to anything.
+                    <span
                       style={{
-                        flex: "none",
-                        width: 44,
-                        height: 44,
-                        borderRadius: 13,
-                        objectFit: "cover",
-                        background: "rgba(245,241,234,.06)",
-                        border: "1px solid rgba(245,241,234,.1)",
+                        ...mono(52, 15, "linear-gradient(145deg,#262320,#141312)", "var(--color-text)", 0),
+                        border: "1px solid rgba(245,241,234,.10)",
+                        boxShadow: "inset 0 1px 0 rgba(245,241,234,.14), 0 6px 16px rgba(0,0,0,.4)",
+                        overflow: "hidden",
                       }}
-                    />
+                    >
+                      {(() => {
+                        const px = e.icon_px ?? 0;
+                        const size = px > 0 && px < 96 ? Math.max(26, Math.min(40, px)) : 52;
+                        return (
+                          <img
+                            src={e.icon}
+                            alt=""
+                            width={size}
+                            height={size}
+                            loading="lazy"
+                            decoding="async"
+                            style={{
+                              width: size,
+                              height: size,
+                              borderRadius: size === 52 ? 15 : 8,
+                              objectFit: "contain",
+                            }}
+                          />
+                        );
+                      })()}
+                    </span>
                   ) : (
                     <span
                       style={{
-                        flex: "none",
-                        width: 44,
-                        height: 44,
-                        borderRadius: 13,
-                        display: "flex",
-                        alignItems: "center",
-                        justifyContent: "center",
-                        background: "linear-gradient(145deg,#3A3634,#1C1A19)",
-                        border: "1px solid rgba(245,241,234,.1)",
-                        ...heading(16, 700),
-                        color: "var(--color-neutral-800)",
+                        ...mono(52, 15, "linear-gradient(145deg,#3A3634,#1C1A19)", "var(--color-neutral-800)", 19),
+                        border: "1px solid rgba(245,241,234,.10)",
+                        boxShadow: "inset 0 1px 0 rgba(245,241,234,.14), 0 6px 16px rgba(0,0,0,.4)",
+                        letterSpacing: "-.02em",
                       }}
                     >
-                      {title.replace(/^https?:\/\//, "").charAt(0).toUpperCase()}
+                      {host.slice(0, 2).toUpperCase()}
                     </span>
                   )}
 
                   <span style={{ flex: 1, minWidth: 0 }}>
-                    <a
-                      href={e.link}
-                      target="_blank"
-                      rel="sponsored noopener noreferrer"
-                      style={{
-                        display: "block",
-                        ...heading(14.5),
-                        color: "var(--color-text)",
-                        overflow: "hidden",
-                        textOverflow: "ellipsis",
-                        whiteSpace: "nowrap",
-                      }}
-                    >
-                      {title} ↗
-                    </a>
+                    <span style={{ display: "flex", alignItems: "center", gap: 7 }}>
+                      <span
+                        style={{
+                          flex: "none",
+                          ...heading(13, 700),
+                          color: first ? "var(--color-accent-300)" : "var(--color-neutral-700)",
+                          ...tabular,
+                        }}
+                      >
+                        #{e.rank}
+                      </span>
+                      <span
+                        style={{
+                          flex: 1,
+                          minWidth: 0,
+                          ...heading(15),
+                          overflow: "hidden",
+                          textOverflow: "ellipsis",
+                          whiteSpace: "nowrap",
+                        }}
+                      >
+                        {title}
+                      </span>
+                      <span
+                        style={{
+                          flex: "none",
+                          ...heading(20, 700),
+                          letterSpacing: "-.03em",
+                          color: first ? "var(--color-accent-300)" : "var(--color-text)",
+                          ...tabular,
+                        }}
+                      >
+                        {usd(e.total_cents / 100)}
+                      </span>
+                    </span>
+
                     {e.description && (
                       <span
                         style={{
                           display: "block",
                           fontSize: 12.5,
                           color: "var(--color-neutral-700)",
-                          lineHeight: 1.35,
-                          marginTop: 3,
+                          lineHeight: 1.4,
+                          marginTop: 4,
                           overflow: "hidden",
                           textOverflow: "ellipsis",
                           whiteSpace: "nowrap",
@@ -641,57 +673,60 @@ export default function BoardScreen(p: Props) {
                         {e.description}
                       </span>
                     )}
+
                     <span
                       style={{
                         display: "flex",
                         alignItems: "center",
-                        gap: 7,
-                        marginTop: 5,
+                        gap: 8,
+                        marginTop: 7,
                         fontSize: 11.5,
                         color: "var(--color-neutral-700)",
                       }}
                     >
-                      <span style={{ color: "var(--color-accent-300)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: "50%" }}>{host}</span>
-                      <span>·</span>
-                      <span>{e.category}</span>
+                      <span style={{ flex: "none", color: "var(--color-neutral-800)", fontWeight: 600 }}>
+                        {e.category}
+                      </span>
+                      <span
+                        style={{
+                          minWidth: 0,
+                          color: "var(--color-accent-300)",
+                          overflow: "hidden",
+                          textOverflow: "ellipsis",
+                          whiteSpace: "nowrap",
+                        }}
+                      >
+                        {host} ↗
+                      </span>
                     </span>
-                  </span>
 
-                  <span style={{ flex: "none", textAlign: "right" }}>
                     <span
-                      style={{
-                        display: "block",
-                        ...heading(18, 700),
-                        letterSpacing: "-.03em",
-                        color: first ? "var(--color-accent-300)" : "var(--color-text)",
-                        ...tabular,
-                      }}
-                    >
-                      {usd(e.total_cents / 100)}
-                    </span>
-                    <button
-                      onClick={() => {
-                        p.setBid(Math.max(MIN_LISTING_CENTS, e.total_cents + TAKE_TOP_MARGIN_CENTS) / 100);
-                        p.linkRef.current?.focus();
+                      role="button"
+                      tabIndex={0}
+                      onClick={takeIt}
+                      onKeyDown={(ev) => {
+                        if (ev.key === "Enter" || ev.key === " ") takeIt(ev);
                       }}
                       className="hov-fill-edge"
                       style={{
-                        marginTop: 6,
+                        display: "inline-flex",
+                        alignItems: "center",
+                        marginTop: 11,
                         cursor: "pointer",
-                        minHeight: 32,
-                        padding: "0 12px",
-                        borderRadius: 999,
+                        minHeight: 36,
+                        padding: "0 14px",
                         background: "rgba(245,241,234,.05)",
                         border: "1px solid var(--color-neutral-400)",
+                        borderRadius: 999,
+                        ...heading(12.5),
                         color: "var(--color-text)",
-                        ...heading(12),
                         ...tabular,
                       }}
                     >
-                      Outbid
-                    </button>
+                      Outbid for {usd(next / 100)}
+                    </span>
                   </span>
-                </div>
+                </a>
               );
             })}
           </div>

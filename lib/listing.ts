@@ -224,6 +224,8 @@ export type BoardEntry = {
   name?: string | null;
   description?: string | null;
   icon?: string | null;
+  /** Smaller side of the stored icon in pixels: 0 = vector, null = none. Small ones are inset, not stretched. */
+  icon_px?: number | null;
 };
 
 export type Board = {

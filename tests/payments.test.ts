@@ -92,6 +92,23 @@ function r2() {
   };
 }
 
+// Real file headers, so the icon picker reads real dimensions out of them.
+function png(w: number, h: number, len = 400) {
+  const b = new Uint8Array(Math.max(len, 33));
+  b.set([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a], 0);
+  b.set([0, 0, 0, 0x0d, 0x49, 0x48, 0x44, 0x52], 8); // length + "IHDR"
+  new DataView(b.buffer).setUint32(16, w);
+  new DataView(b.buffer).setUint32(20, h);
+  return b;
+}
+function ico(w: number, h: number, len = 200) {
+  const b = new Uint8Array(Math.max(len, 22));
+  b.set([0, 0, 1, 0, 1, 0], 0); // ICO, one image
+  b[6] = w % 256; // 0 means 256
+  b[7] = h % 256;
+  return b;
+}
+
 // Outbound fetch is disabled by default; tests opt in per URL.
 export const net = { routes: new Map<string, () => Response>(), calls: [] as string[] };
 globalThis.fetch = (async (input: RequestInfo | URL) => {
@@ -880,12 +897,13 @@ await test("brand details are fetched once after payment and shown on the board"
     <link rel="icon" href="/favicon.ico">
   </head><body>ignored</body></html>`;
   net.routes.set("https://brandsite.co/", () => new Response(html, { headers: { "content-type": "text/html; charset=utf-8" } }));
-  net.routes.set("https://brandsite.co/apple-icon.png", () => new Response(new Uint8Array(400).fill(7), { headers: { "content-type": "image/png" } }));
+  net.routes.set("https://brandsite.co/apple-icon.png", () => new Response(png(180, 180), { headers: { "content-type": "image/png" } }));
 
   await paidBid(env, "brandsite.co", 20);
   const meta = db.prepare("SELECT * FROM listing_meta WHERE listing_key = 'brandsite.co'").get() as Record<string, any>;
   eq([meta.name, meta.description, meta.status], ["Selvo", "Support inbox & live chat without per-seat pricing.", "ok"], "stored details");
   eq([meta.icon_key, meta.icon_type, meta.icon_bytes], ["brand-icons/brandsite.co.png", "image/png", 400], "stored icon");
+  eq([meta.icon_w, meta.icon_h], [180, 180], "stored icon size");
 
   const b = await board(env);
   eq(b.entries[0].name, "Selvo", "board name");
@@ -908,7 +926,7 @@ await test("text from a brand page: entities decode, apostrophes survive, markup
     "</head><body>x</body></html>",
   ].join("");
   net.routes.set("https://probe-entities.com", () => new Response(html, { headers: { "content-type": "text/html" } }));
-  net.routes.set("https://probe-entities.com/favicon.ico", () => new Response(new Uint8Array(200).fill(3), { headers: { "content-type": "image/x-icon" } }));
+  net.routes.set("https://probe-entities.com/favicon.ico", () => new Response(ico(32, 32), { headers: { "content-type": "image/x-icon" } }));
 
   await paidBid(env, "probe-entities.com", 10);
   const meta = db.prepare("SELECT name, description FROM listing_meta WHERE listing_key = 'probe-entities.com'").get() as Record<string, any>;
@@ -918,6 +936,67 @@ await test("text from a brand page: entities decode, apostrophes survive, markup
     "named A’s decimal B’s hex C’s literal D’s amp E&F dash G—H unknown IJ",
     "description entities",
   );
+});
+
+await test("a long page title becomes a brand name plus a tagline", async () => {
+  const { env, db } = makeEnv();
+  const page = (title: string) =>
+    `<!doctype html><html><head><title>${title}</title></head><body>x</body></html>`;
+
+  const cases: [string, string, string, string | null][] = [
+    ["splitter.com", "Selvo \u2014 Intercom alternative without per-seat fees", "Selvo", "Intercom alternative without per-seat fees"],
+    ["piped.com", "EssayDone | Focus on Your Insights; We Handle the Writing", "EssayDone", "Focus on Your Insights; We Handle the Writing"],
+    // "Home" first reads backwards, so the brand is taken from the other end.
+    ["backwards.com", "Home | Orelon", "Orelon", null],
+    // Short titles are already a name: never split, never truncated.
+    // The product is named at the end here, and it is still the short side.
+    ["reversed.com", "AI SEO Platform (GEO, AEO): Traffic from AI Search | RankControl", "RankControl", null],
+    ["short.com", "Cubicles", "Cubicles", null],
+  ];
+
+  for (const [key, title, name] of cases) {
+    net.routes.set(`https://${key}`, () => new Response(page(title), { headers: { "content-type": "text/html" } }));
+    await paidBid(env, key, 10);
+    const meta = db.prepare("SELECT name FROM listing_meta WHERE listing_key = ?").get(key) as Record<string, any>;
+    eq(meta.name, name, `${key} name`);
+  }
+});
+
+await test("the icon is the biggest one the site offers, not the first", async () => {
+  const { env, db } = makeEnv();
+  const html = `<!doctype html><html><head>
+    <title>Bigicon</title>
+    <link rel="icon" sizes="16x16" href="/favicon.ico">
+    <link rel="manifest" href="/site.webmanifest">
+  </head><body>x</body></html>`;
+  net.routes.set("https://bigicon.dev", () => new Response(html, { headers: { "content-type": "text/html" } }));
+  net.routes.set("https://bigicon.dev/site.webmanifest", () =>
+    new Response(JSON.stringify({ icons: [{ src: "/i-192.png", sizes: "192x192" }, { src: "/i-32.png", sizes: "32x32" }] }), {
+      headers: { "content-type": "application/manifest+json" },
+    }),
+  );
+  net.routes.set("https://bigicon.dev/favicon.ico", () => new Response(ico(16, 16), { headers: { "content-type": "image/x-icon" } }));
+  net.routes.set("https://bigicon.dev/i-192.png", () => new Response(png(192, 192, 900), { headers: { "content-type": "image/png" } }));
+  net.routes.set("https://bigicon.dev/i-32.png", () => new Response(png(32, 32), { headers: { "content-type": "image/png" } }));
+
+  await paidBid(env, "bigicon.dev", 10);
+  const meta = db.prepare("SELECT * FROM listing_meta WHERE listing_key = 'bigicon.dev'").get() as Record<string, any>;
+  eq([meta.icon_key, meta.icon_w], ["brand-icons/bigicon.dev.png", 192], "kept the 192px manifest icon");
+  // 192px clears the bar on the first download, so the 16px favicon is never fetched.
+  eq(net.calls.includes("https://bigicon.dev/favicon.ico"), false, "no wasted favicon fetch");
+});
+
+await test("a small favicon is still kept when the site has nothing better", async () => {
+  const { env, db } = makeEnv();
+  const html = `<!doctype html><html><head><title>Tinyicon</title><link rel="icon" href="/favicon.ico"></head><body>x</body></html>`;
+  net.routes.set("https://tinyicon.dev", () => new Response(html, { headers: { "content-type": "text/html" } }));
+  net.routes.set("https://tinyicon.dev/favicon.ico", () => new Response(ico(32, 32), { headers: { "content-type": "image/x-icon" } }));
+
+  await paidBid(env, "tinyicon.dev", 10);
+  const meta = db.prepare("SELECT * FROM listing_meta WHERE listing_key = 'tinyicon.dev'").get() as Record<string, any>;
+  eq([meta.icon_type, meta.icon_w, meta.status], ["image/x-icon", 32, "ok"], "kept the 32px icon");
+  // It looked for something better first, but never more than the cap.
+  eq(net.calls.filter((u) => u.startsWith("https://tinyicon.dev")).length <= 5, true, "at most four icon tries");
 });
 
 await test("a brand site that is down never blocks the payment", async () => {
