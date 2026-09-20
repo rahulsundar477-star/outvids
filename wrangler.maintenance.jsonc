@@ -1,0 +1,12 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  // The kill switch (npm run panic). Same Worker name and same domain, deliberately no bindings:
+  // no R2, no D1, no rate limits, no assets, and the cron is switched off. Nothing here can spend.
+  // Put the real app back with `npm run resume`.
+  "name": "outvids",
+  "main": "maintenance.ts",
+  "compatibility_date": "2026-09-01",
+  "triggers": { "crons": [] },
+  "routes": [{ "pattern": "outvids.lol", "custom_domain": true }],
+  "observability": { "enabled": true },
+}

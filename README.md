@@ -34,6 +34,9 @@ npm run dev:local      # localhost:3100 on local data only, hot reload, nothing 
 npm run test:payments  # 23 payment scenarios, isolated SQLite + mocked Dodo
 npm run deploy         # OpenNext build + wrangler deploy
 npm run indexnow       # ping IndexNow after a deploy that changes pages
+npm run usage          # usage against the free allowances (see docs/runbook.md)
+npm run panic          # kill switch: serve a static page from a Worker with no bindings
+npm run resume         # put the app back
 ```
 
 ## Configuration

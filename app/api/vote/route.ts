@@ -1,6 +1,7 @@
 import { idFromKey, loadManifest } from "@/lib/clips";
 import { cf } from "@/lib/edge";
 import { isValidClipId, isValidViewerId } from "@/lib/feed";
+import { clientIp, edgeLimit } from "@/server/limit";
 
 export const dynamic = "force-dynamic";
 
@@ -25,6 +26,16 @@ export async function POST(request: Request) {
   }
 
   const { env } = cf();
+  // Ceilings before any D1 write, so one script can't run up our metered usage.
+  const ip = clientIp(request);
+  const withinBinding = env.VOTE_RL ? (await env.VOTE_RL.limit({ key: ip })).success : true;
+  const success = withinBinding && (await edgeLimit("vote", ip, 60, 60));
+  if (!success)
+    return Response.json(
+      { error: "rate_limited" },
+      { status: 429, headers: { ...noStore, "Retry-After": "60" } },
+    );
+
   const rows = await loadManifest(env.CLIPS);
   if (!rows.some((r) => idFromKey(r.r2_key) === clipId)) {
     return Response.json({ error: "unknown_clip" }, { status: 404, headers: noStore });

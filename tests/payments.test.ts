@@ -7,6 +7,7 @@ import { DatabaseSync } from "node:sqlite";
 import { readFileSync, readdirSync } from "node:fs";
 import { Webhook } from "standardwebhooks";
 import { handlePayments, reconcilePayments } from "../server/payments";
+import { resetEdgeLimit } from "../server/limit";
 import { dodoState } from "./dodo-mock";
 
 // ── D1 shim over node:sqlite ────────────────────────────────────────────────
@@ -260,6 +261,7 @@ function eq(actual: unknown, expected: unknown, label: string) {
 async function test(name: string, fn: () => Promise<void>) {
   dodoState.reset();
   cacheStore.clear();
+  resetEdgeLimit();
   try {
     await fn();
     results.push({ name, ok: true });
@@ -358,6 +360,29 @@ await test("rejects cross-origin, non-JSON, rate-limited requests", async () => 
     ).status,
     429,
     "rate limited",
+  );
+});
+
+await test("the edge counter caps checkouts even when the platform limiter lets them through", async () => {
+  // Cloudflare's rate limiting binding is permissive by design — in production it let 40 sequential
+  // requests past a 10/minute limit — so the ceiling has to hold without it.
+  const { env, db } = makeEnv({ CHECKOUT_RL: undefined });
+  const codes: number[] = [];
+  for (let i = 0; i < 12; i++) {
+    const r = await checkout(env, {
+      link: `acme${i}.com`,
+      category: "AI",
+      target_dollars: 10,
+      idempotency_key: key(),
+    });
+    codes.push(r.status);
+  }
+  eq(codes.slice(0, 10).every((c) => c === 200), true, "first ten go through");
+  eq(codes.slice(10).every((c) => c === 429), true, "the rest are refused");
+  eq(
+    count(db, "SELECT COUNT(*) AS n FROM bids") <= 10,
+    true,
+    "nothing past the cap reached the database",
   );
 });
 

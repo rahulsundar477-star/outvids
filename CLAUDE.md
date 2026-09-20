@@ -53,6 +53,11 @@ It's a solo project, mobile-first, and every video is 9:16.
 - **Don't name a Worker var `CF_ACCOUNT_ID`.** Wrangler hijacks that name as its own account setting. Use `OUTVIDS_ACCOUNT_ID`.
 - **Analytics Engine must be enabled in the dashboard before the binding is uncommented.** Otherwise the deploy fails with code 10089.
 - **Videos need the `muted` attribute set on the element** (not only the prop) and `playsInline`, or iOS won't autoplay.
+- **Cloudflare has no spend limit.** The free plan refuses instead of billing, except R2, which is
+  metered. Read `docs/runbook.md` before adding anything that writes to R2, and keep unauthenticated
+  endpoints behind `edgeLimit()` in `server/limit.ts` — the platform's rate limiting binding is
+  permissive by design and let 40 requests through a 10/min limit in a live test.
+- **`npm run panic`** swaps the app for `maintenance.ts` (no bindings) in ~20s; `npm run resume` restores it.
 - **Handle API routes by hand.** `/api/*` stays `Disallow` in robots, and new utility pages get `robots: { index: false, follow: false }`. Public pages go in `app/sitemap.ts`, then run `npm run indexnow`.
 
 ## Verify before "done"

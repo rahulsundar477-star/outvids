@@ -44,12 +44,26 @@
     "DODO_BID_PRODUCT_ID": "pdt_0Nno7geQl7XrtnPp4p8VS",
     "DODO_BUSINESS_ID": "bus_zZcJA2RqYtLEnVoHEj5N8",
   },
-  // 10 checkout attempts per IP per minute.
+  // Per-IP ceilings at the edge. They cost nothing, they run before any binding is touched, and they
+  // are what stops one script from turning our metered services (D1 writes, R2 reads) into a bill.
   "ratelimits": [
+    // 10 checkout attempts per IP per minute.
     {
       "name": "CHECKOUT_RL",
       "namespace_id": "1001",
       "simple": { "limit": 10, "period": 60 },
+    },
+    // 60 votes per IP per minute: far more than a thumb can manage, far less than a script wants.
+    {
+      "name": "VOTE_RL",
+      "namespace_id": "1002",
+      "simple": { "limit": 60, "period": 60 },
+    },
+    // 120 beacons per IP per minute (one per clip leave).
+    {
+      "name": "BEACON_RL",
+      "namespace_id": "1003",
+      "simple": { "limit": 120, "period": 60 },
     },
   ],
   "services": [{ "binding": "WORKER_SELF_REFERENCE", "service": "outvids" }],

@@ -82,7 +82,11 @@ process.stdout.write(`\n${tape.size} responses taped\n\n`);
 globalThis.fetch = (async (input: RequestInfo | URL) => {
   const rec = tape.get(keyOf(input));
   if (!rec || rec === "error") throw new TypeError("recorded failure");
-  return new Response(rec.body, { status: rec.status, headers: rec.headers });
+  // Cast: the Workers type definitions narrow BodyInit, and this file runs in Node.
+  return new Response(rec.body as unknown as BodyInit, {
+    status: rec.status,
+    headers: rec.headers,
+  });
 }) as typeof fetch;
 
 const results: { site: string; cpu: number[]; status: string; icon: string }[] =

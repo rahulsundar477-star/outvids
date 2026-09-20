@@ -16,6 +16,7 @@
  */
 import DodoPayments from "dodopayments";
 import { enrichAndSave } from "./enrich";
+import { edgeLimit } from "./limit";
 import {
   CATEGORIES,
   isLinkError,
@@ -338,8 +339,13 @@ async function createCheckout(request: Request, env: Env, cfg: Config) {
   const ipHash = (
     await sha256Hex(`${env.IP_HASH_SALT || "outvids"}:${ip}`)
   ).slice(0, 32);
-  if (env.CHECKOUT_RL) {
-    const { success } = await env.CHECKOUT_RL.limit({ key: ipHash });
+  // Two ceilings: the platform binding (permissive by design) and our own counter, which enforces.
+  const withinBinding = env.CHECKOUT_RL
+    ? (await env.CHECKOUT_RL.limit({ key: ipHash })).success
+    : true;
+  const withinEdge = await edgeLimit("checkout", ipHash, 10, 60);
+  {
+    const success = withinBinding && withinEdge;
     if (!success)
       return json(
         {

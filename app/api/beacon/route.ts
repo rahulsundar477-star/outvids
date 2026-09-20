@@ -1,5 +1,6 @@
 import { cf } from "@/lib/edge";
 import { isValidClipId, isValidViewerId } from "@/lib/feed";
+import { clientIp, edgeLimit } from "@/server/limit";
 
 export const dynamic = "force-dynamic";
 
@@ -15,6 +16,13 @@ const MAX_WATCH_MS = 10 * 60_000;
  *   double1 watched_ms · double2 duration_ms · double3 completion ratio · double4 completed · double5 skipped · double6 loops
  */
 export async function POST(request: Request) {
+  // Ceilings first: a beacon is cheap, but nothing unauthenticated stays unbounded.
+  const ip = clientIp(request);
+  const rl = cf().env.BEACON_RL;
+  const withinBinding = rl ? (await rl.limit({ key: ip })).success : true;
+  if (!withinBinding || !(await edgeLimit("beacon", ip, 120, 60)))
+    return new Response(null, { status: 429 });
+
   let b: Record<string, unknown>;
   try {
     b = JSON.parse(await request.text());
