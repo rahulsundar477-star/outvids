@@ -105,6 +105,30 @@ above is the hard cap.
 - **The free plan is itself a guardrail**: Workers requests and D1 queries past the daily allowance
   are refused, not billed. Vote or beacon abuse can exhaust a day's quota; it cannot create a bill.
 
+## Security reports and security.txt
+
+- `/.well-known/security.txt` (RFC 9116) is a static file in `public/.well-known/`. It points at
+  `https://outvids.lol/security`, a form rather than an email address, so no personal address is published.
+- **It expires on 2027-03-21.** `npm test` starts failing 30 days before that; set a new `Expires` no more
+  than a year out and deploy.
+- Reports land in D1 table `security_reports`. Read them with `npm run security:reports`
+  (`-- --new` for the unhandled ones, `-- --mark sr_… fixed` to close one). Nothing notifies you, so look
+  after a scanner run or once a week.
+- The endpoint is plain Worker code with its own fences: same-origin JSON, 16 KB cap, five reports per
+  address per hour, a honeypot field, and the IP stored only as a salted hash.
+
+## Bot Fight Mode: deliberately off
+
+Cloudflare's Security Insights flags it as off, and that is a decision, not an oversight. Bot Fight Mode
+**can't be bypassed** by WAF custom rules, skip rules or Page Rules, and Cloudflare says it "may
+challenge API or mobile app traffic". Dodo's payment webhooks are exactly that — server-to-server,
+from a pool of IPs Dodo doesn't publish — and refunds and chargebacks reach us **only** by webhook. With
+Bot Fight Mode on, a refunded listing could stay ranked on the board.
+
+Revisit it if real bot traffic shows up in the metrics. The safe way to switch it on is to move the
+webhook to a separate hostname outside the zone (the Worker's workers.dev address, answering only
+`/api/webhooks/dodo`) and update the endpoint URL in Dodo first.
+
 ## If we ever move to the paid Workers plan
 
 The free plan's "stop, don't spend" behaviour goes away — requests past the included 10M/month start

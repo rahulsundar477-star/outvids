@@ -1,6 +1,7 @@
 /**
  * Worker entry.
- * - Payments routes (/api/checkout, /api/checkout/status, /api/webhooks/dodo, /api/board) run as plain Worker
+ * - Payments routes (/api/checkout, /api/checkout/status, /api/webhooks/dodo, /api/board) and the
+ *   security report inbox (/api/security-report) run as plain Worker
  *   code, before Next.js loads, so money paths never hit the CPU limit.
  * - The swipe hot path (/feed.json, /api/stream/:id) also runs as plain Worker code (server/hotpath.ts).
  * - Everything else goes to the OpenNext-built Next.js app (`.open-next/worker.js`, generated at build time).
@@ -11,6 +12,7 @@ import { default as handler } from "./.open-next/worker.js";
 import { rerank } from "./lib/rank";
 import { enrichPending } from "./server/enrich";
 import { handleHotPath, isHotPath } from "./server/hotpath";
+import { handleSecurity, isSecurityRoute } from "./server/security";
 import {
   handlePayments,
   isPaymentsRoute,
@@ -24,6 +26,7 @@ export default {
     const { pathname } = new URL(request.url);
     if (isHotPath(pathname)) return handleHotPath(request, env, ctx);
     if (isPaymentsRoute(pathname)) return handlePayments(request, env, ctx);
+    if (isSecurityRoute(pathname)) return handleSecurity(request, env);
     return handler.fetch(request, env, ctx);
   },
 

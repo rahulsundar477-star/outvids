@@ -255,7 +255,8 @@ input { font-size: 16px; } /* ≥16px stops iOS zooming into the field */
 .ov-doc-nav { position: sticky; top: 0; z-index: 5; display: flex; align-items: center; justify-content: space-between; gap: 12px;
   margin: 0 -20px; padding: calc(10px + var(--safe-top)) 20px 10px; background: rgba(11,10,10,.82);
   -webkit-backdrop-filter: blur(18px); backdrop-filter: blur(18px); border-bottom: 1px solid var(--color-divider); }
-.ov-doc-brand { font-family: var(--font-heading); font-weight: 700; font-size: 17px; letter-spacing: -.01em; color: var(--color-text); }
+.ov-doc-brand { font-family: var(--font-heading); font-weight: 700; font-size: 17px; letter-spacing: -.01em; color: var(--color-text);
+  display: inline-flex; align-items: center; min-height: 44px; } /* a thumb-sized target, not just the glyphs */
 .ov-doc-brand span { color: var(--color-accent); margin-left: 1px; }
 .ov-doc-cta { display: inline-flex; align-items: center; justify-content: center; gap: 9px; min-height: 52px; padding: 0 22px; border-radius: 16px;
   background: linear-gradient(180deg, var(--color-accent), var(--color-accent-600)); color: #0B0A0A; font-family: var(--font-heading); font-weight: 700; font-size: 16px;

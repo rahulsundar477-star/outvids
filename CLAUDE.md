@@ -58,6 +58,9 @@ It's a solo project, mobile-first, and every video is 9:16.
   endpoints behind `edgeLimit()` in `server/limit.ts` — the platform's rate limiting binding is
   permissive by design and let 40 requests through a 10/min limit in a live test.
 - **`npm run panic`** swaps the app for `maintenance.ts` (no bindings) in ~20s; `npm run resume` restores it.
+- **Bot Fight Mode stays off** while Dodo webhooks land on outvids.lol: it can't be bypassed and it challenges
+  server-to-server traffic, and refunds only arrive by webhook. See `docs/runbook.md` before changing it.
+- **`security.txt` expires 2027-03-21.** `npm test` fails 30 days ahead; renew the date in `public/.well-known/`.
 - **Handle API routes by hand.** `/api/*` stays `Disallow` in robots, and new utility pages get `robots: { index: false, follow: false }`. Public pages go in `app/sitemap.ts`, then run `npm run indexnow`.
 
 ## Verify before "done"

@@ -1,0 +1,6 @@
+# Outvids security contact (RFC 9116). Renew Expires before it lapses; npm test fails 30 days ahead.
+Contact: https://outvids.lol/security
+Expires: 2027-03-21T00:00:00.000Z
+Preferred-Languages: en
+Canonical: https://outvids.lol/.well-known/security.txt
+Policy: https://outvids.lol/security

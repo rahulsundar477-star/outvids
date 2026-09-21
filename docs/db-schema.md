@@ -28,6 +28,8 @@ payment_events  (webhook_id PK, type, payment_id, bid_id, outcome received|appli
 bid_transitions (id PK, bid_id, from_status, to_status, source checkout|webhook|status-check|reconcile, ref, at)  -- append-only audit
 listing_meta    (listing_key PK, name, description, icon_key, icon_type, icon_bytes, icon_w, icon_h,
                  source_url, status ok|partial|failed, error, attempts, fetched_at)  -- fetched from the brand's own site
+security_reports (id PK 'sr_<hex>', summary, details, url, contact, ip_hash, user_agent,
+                 status new|triaged|fixed|invalid, created_at)  -- from outvids.lol/security
 ```
 
 - Bid status: `created → pending → paid | failed | cancelled | expired | error`. After paid: `refunded | disputed → paid | chargeback`. `review` = succeeded but mismatched, held off the board.

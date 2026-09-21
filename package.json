@@ -15,13 +15,14 @@
     "cf-typegen": "wrangler types --env-interface CloudflareEnv cloudflare-env.d.ts",
     "indexnow": "node scripts-indexnow.mjs",
     "usage": "node scripts-usage.mjs",
+    "security:reports": "node scripts-security-reports.mjs",
     "db:snapshot": "node scripts-db-snapshot.mjs",
     "test:payments": "node tests/run-payments.mjs",
     "golive:check": "node scripts-golive.mjs check",
     "golive:clean-test": "node scripts-golive.mjs clean-test",
     "test:feed": "node tests/run-feed.mjs",
     "bench:enrich": "node tests/run-bench.mjs",
-    "test": "npm run test:payments && npm run test:feed"
+    "test": "npm run test:payments && npm run test:feed && node tests/check-security-txt.mjs"
   },
   "dependencies": {
     "@opennextjs/cloudflare": "^1.20.6",

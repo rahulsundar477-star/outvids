@@ -8,6 +8,7 @@ import { readFileSync, readdirSync } from "node:fs";
 import { Webhook } from "standardwebhooks";
 import { handlePayments, reconcilePayments } from "../server/payments";
 import { resetEdgeLimit } from "../server/limit";
+import { handleSecurity } from "../server/security";
 import { dodoState } from "./dodo-mock";
 
 // ── D1 shim over node:sqlite ────────────────────────────────────────────────
@@ -1044,6 +1045,56 @@ await test("audit trail: every status change has exactly one transition row", as
     )
     .all();
   eq(bad.length, 0, "last transition matches status");
+});
+
+// ── security reports (/api/security-report) ─────────────────────────────────
+async function report(env: CloudflareEnv, body: unknown, headers: Record<string, string> = {}) {
+  const res = await handleSecurity(
+    new Request(ORIGIN + "/api/security-report", {
+      method: "POST",
+      headers: { origin: ORIGIN, "content-type": "application/json", "cf-connecting-ip": "198.51.100.9", ...headers },
+      body: typeof body === "string" ? body : JSON.stringify(body),
+    }),
+    env,
+  );
+  return { status: res.status, json: (await res.json().catch(() => ({}))) as Record<string, any> };
+}
+const goodReport = {
+  summary: "Vote endpoint accepts unknown viewer ids",
+  details: "Posting to /api/vote with a made-up viewer_id is accepted and counted as a real vote.",
+  url: "https://outvids.lol/api/vote",
+  contact: "researcher@example.com",
+};
+
+await test("security report: stored once, IP only as a hash, fields trimmed", async () => {
+  const { env, db } = makeEnv();
+  const r = await report(env, { ...goodReport, summary: "  " + goodReport.summary + "\u0007  " });
+  eq(r.status, 201, "accepted");
+  eq(/^sr_[0-9a-f]{16}$/.test(String(r.json.id)), true, "reference id");
+  const row = db.prepare("SELECT * FROM security_reports").get() as Record<string, any>;
+  eq([row.summary, row.status, row.contact], [goodReport.summary, "new", goodReport.contact], "stored as sent, cleaned");
+  eq(/^[0-9a-f]{32}$/.test(row.ip_hash) && !String(row.ip_hash).includes("198.51"), true, "ip is hashed");
+});
+
+await test("security report: other sites, non-JSON, junk and bots are turned away", async () => {
+  const { env, db } = makeEnv();
+  eq((await report(env, goodReport, { origin: "https://evil.example" })).status, 403, "cross-origin");
+  eq((await report(env, "summary=x", { "content-type": "application/x-www-form-urlencoded" })).status, 415, "form post");
+  eq((await report(env, "{not json")).status, 400, "bad json");
+  eq((await report(env, { summary: "hi", details: "short" })).status, 400, "too short");
+  eq((await report(env, { ...goodReport, details: "x".repeat(8001) })).status, 400, "too long");
+  eq((await report(env, "x".repeat(17_000))).status, 413, "body cap");
+  const bot = await report(env, { ...goodReport, website: "http://spam.example" });
+  eq(bot.status, 202, "honeypot gets a quiet yes");
+  eq(count(db, "SELECT COUNT(*) AS n FROM security_reports"), 0, "nothing stored for any of them");
+});
+
+await test("security report: five an hour per address, then refused", async () => {
+  const { env, db } = makeEnv();
+  const codes: number[] = [];
+  for (let i = 0; i < 7; i++) codes.push((await report(env, { ...goodReport, summary: `Report number ${i}` })).status);
+  eq(codes, [201, 201, 201, 201, 201, 429, 429], "cap at five");
+  eq(count(db, "SELECT COUNT(*) AS n FROM security_reports"), 5, "only five stored");
 });
 
 // ── report ──────────────────────────────────────────────────────────────────
