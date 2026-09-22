@@ -23,6 +23,9 @@ export type ManifestRow = {
 
 export const MANIFEST_KEY = "manifest.json";
 export const FEED_KEY = "feed.json";
+/** Ids that have a poster in R2, written by scripts-posters.mjs. One read per re-rank, no bucket listing. */
+export const POSTER_INDEX_KEY = "posters/index.json";
+export const posterKeyFromId = (id: string) => `posters/${id}.webp`;
 
 /** Public id is the object's file stem: videos/pod_A2b.mp4 → pod_A2b. */
 export const idFromKey = (key: string) => key.replace(/^videos\//, "").replace(/\.mp4$/, "");

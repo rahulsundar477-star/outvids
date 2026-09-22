@@ -8,7 +8,7 @@ import { HOLD_UNTIL, orderFeed } from "../lib/shuffle";
 // read the constant it is checking (a change to HOLD_UNTIL has to fail here).
 const FIRST = 100;
 import { promoSlots } from "../lib/promo";
-import { isHeldBack } from "../lib/rank";
+import { isHeldBack, posterIds } from "../lib/rank";
 import type { FeedClip } from "../lib/feed";
 
 const results: { name: string; ok: boolean; err?: string }[] = [];
@@ -159,6 +159,28 @@ test("promo slides start after 3-4 reels and repeat 6-12 apart", () => {
       throw new Error(`gap out of range: ${gaps}`);
   }
 });
+
+// Async rules run after the sync ones and report into the same list.
+const bucketWith = (value: unknown) =>
+  ({
+    get: async (key: string) =>
+      key === "posters/index.json" && value !== undefined
+        ? { json: async () => (typeof value === "string" ? JSON.parse(value) : value) }
+        : null,
+  }) as unknown as R2Bucket;
+try {
+  eq([...(await posterIds(bucketWith(["a", "b", 3, null])))], ["a", "b"], "only string ids");
+  eq((await posterIds(bucketWith(undefined))).size, 0, "no index yet");
+  eq((await posterIds(bucketWith("{not json"))).size, 0, "broken index");
+  eq((await posterIds(bucketWith({ ids: ["a"] }))).size, 0, "wrong shape");
+  results.push({ name: "a missing or broken poster index means no posters, never a failed re-rank", ok: true });
+} catch (e) {
+  results.push({
+    name: "a missing or broken poster index means no posters, never a failed re-rank",
+    ok: false,
+    err: (e as Error).message,
+  });
+}
 
 for (const r of results)
   console.log(

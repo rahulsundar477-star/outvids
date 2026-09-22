@@ -99,6 +99,7 @@ function seedFeed() {
     feed.clips = feed.clips.map((c) => ({
       ...c,
       url: c.url.startsWith("http") ? c.url : `https://outvids.lol${c.url}`,
+      ...(c.poster && !c.poster.startsWith("http") ? { poster: `https://outvids.lol${c.poster}` } : {}),
     }));
     const file = join(tmp, "feed.json");
     writeFileSync(file, JSON.stringify(feed), "utf8");

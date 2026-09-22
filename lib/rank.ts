@@ -10,7 +10,7 @@
  *   explore = min(0.25, 0.12·√(ln(N + e) / (views + 1)))       — UCB-style, fades as a clip gets watched
  *   score   = quality + explore
  */
-import { FEED_KEY, idFromKey, loadManifest, type ManifestRow } from "./clips";
+import { FEED_KEY, idFromKey, loadManifest, type ManifestRow, POSTER_INDEX_KEY } from "./clips";
 import type { Feed, FeedClip } from "./feed";
 
 export type RankEnv = {
@@ -97,9 +97,25 @@ export function scoreClips(rows: ManifestRow[], votes: Map<string, number>, stat
   });
 }
 
+/** Which clips have a poster. A missing or broken index just means no posters, never a failed re-rank. */
+export async function posterIds(bucket: R2Bucket): Promise<Set<string>> {
+  try {
+    const obj = await bucket.get(POSTER_INDEX_KEY);
+    if (!obj) return new Set();
+    const ids = (await obj.json()) as unknown;
+    return new Set(Array.isArray(ids) ? ids.filter((x): x is string => typeof x === "string") : []);
+  } catch {
+    return new Set();
+  }
+}
+
 export async function rerank(env: RankEnv, trigger: Feed["trigger"]) {
   const started = Date.now();
-  const [rows, votes] = await Promise.all([loadManifest(env.CLIPS, true), voteCounts(env.DB)]);
+  const [rows, votes, posters] = await Promise.all([
+    loadManifest(env.CLIPS, true),
+    voteCounts(env.DB),
+    posterIds(env.CLIPS),
+  ]);
 
   let stats: Map<string, Stat> | null = null;
   let statsError: string | null = null;
@@ -115,6 +131,7 @@ export async function rerank(env: RankEnv, trigger: Feed["trigger"]) {
   const clips: FeedClip[] = scored.map((c) => ({
     id: c.id,
     url: `/api/stream/${c.id}`,
+    ...(posters.has(c.id) ? { poster: `/api/poster/${c.id}` } : {}),
     track: c.row.track,
     setting: c.row.tag_setting,
     people: c.row.tag_people,

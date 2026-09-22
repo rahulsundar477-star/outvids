@@ -3,6 +3,8 @@
 export type FeedClip = {
   id: string; // file stem, e.g. pod_A2b
   url: string; // /api/stream/<id>
+  /** First frame as a small WebP (/api/poster/<id>), when one has been made. Painted before the video decodes. */
+  poster?: string;
   track: string;
   setting: string;
   people: string;

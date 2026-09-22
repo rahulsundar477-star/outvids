@@ -48,3 +48,6 @@ manifest.sqlite
 
 # exported test data (contains customer details)
 backups/
+
+# generated poster frames (uploaded to R2 by scripts-posters.mjs)
+.posters/

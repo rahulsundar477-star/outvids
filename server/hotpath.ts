@@ -4,7 +4,7 @@
  * that keeps the hot path inside the Workers CPU limit under load.
  * app/feed.json/route.ts and app/api/stream/[id]/route.ts stay for `next dev`, where worker.ts doesn't run.
  */
-import { FEED_KEY, keyFromId } from "../lib/clips";
+import { FEED_KEY, keyFromId, posterKeyFromId } from "../lib/clips";
 import { isValidClipId } from "../lib/feed";
 import { rerank } from "../lib/rank";
 
@@ -16,7 +16,8 @@ export function isHotPath(pathname: string) {
   return (
     pathname === "/feed.json" ||
     pathname.startsWith("/api/stream/") ||
-    pathname.startsWith("/api/icon/")
+    pathname.startsWith("/api/icon/") ||
+    pathname.startsWith("/api/poster/")
   );
 }
 
@@ -34,6 +35,7 @@ export async function handleHotPath(
   }
   if (url.pathname === "/feed.json") return feed(request, url, env, ctx);
   if (url.pathname.startsWith("/api/icon/")) return brandIcon(request, url, env, ctx);
+  if (url.pathname.startsWith("/api/poster/")) return poster(request, url, env, ctx);
   return stream(request, url, env, ctx);
 }
 
@@ -151,6 +153,28 @@ function videoHeaders(obj: R2Object) {
   if (!headers.has("Content-Type")) headers.set("Content-Type", "video/mp4");
   headers.set("Cache-Control", "public, max-age=31536000, immutable");
   return headers;
+}
+
+// ── /api/poster/:id: first frame of a reel, made by scripts-posters.mjs ──────
+
+async function poster(request: Request, url: URL, env: CloudflareEnv, ctx: ExecutionContext) {
+  const id = decodeURIComponent(url.pathname.slice("/api/poster/".length));
+  if (!isValidClipId(id)) return new Response("bad id", { status: 400 });
+  const cache = edgeCache();
+  const cacheKey = `${url.origin}/api/poster/${id}`;
+  const hit = await cache.match(cacheKey);
+  if (hit) return hit;
+  const obj = await env.CLIPS.get(posterKeyFromId(id));
+  if (!obj) return new Response(null, { status: 404, headers: { "Cache-Control": "public, max-age=300" } });
+  const headers = new Headers();
+  obj.writeHttpMetadata(headers);
+  headers.set("ETag", obj.httpEtag);
+  headers.set("Content-Type", "image/webp");
+  headers.set("Cache-Control", "public, max-age=31536000, immutable");
+  headers.set("X-Content-Type-Options", "nosniff");
+  const res = new Response(request.method === "HEAD" ? null : obj.body, { headers });
+  if (request.method === "GET") ctx.waitUntil(cache.put(cacheKey, res.clone()));
+  return res;
 }
 
 // ── /api/icon/:listing_key: brand icon stored by server/enrich.ts ────────────

@@ -44,6 +44,8 @@ export default function FeedScreen(p: Props) {
   const [active, setActive] = useState(p.startIndex);
   const [rendered, setRendered] = useState(p.startIndex + 6);
   const [paused, setPaused] = useState(false);
+  /** Index of the reel that has started playing; the next one may preload only once it has. */
+  const [warm, setWarm] = useState(-1);
   const [burst, setBurst] = useState<{ id: string; n: number; x: number; y: number } | null>(null);
   const burstT = useRef<ReturnType<typeof setTimeout>>(undefined);
   const videos = useRef(new Map<string, HTMLVideoElement>());
@@ -219,6 +221,9 @@ export default function FeedScreen(p: Props) {
           }
           const clip = item.clip;
           const near = i >= active - WINDOW_BEHIND && i <= active + WINDOW_AHEAD;
+          // Only the reel on screen downloads at first. The next one waits until this one is playing,
+          // so on a phone connection they don't split the bandwidth and slow the first frame down.
+          const preload = i === active ? "auto" : i === active + 1 && warm === active ? "auto" : "none";
           const isActive = i === active;
           const voted = p.isVoted(clip.id);
           return (
@@ -235,7 +240,8 @@ export default function FeedScreen(p: Props) {
                   active={isActive}
                   paused={isActive && paused}
                   muted={p.muted}
-                  preload={isActive || i === active + 1 ? "auto" : "metadata"}
+                  preload={preload}
+                  onStarted={isActive ? () => setWarm(active) : undefined}
                   register={(v) => (v ? videos.current.set(clip.id, v) : videos.current.delete(clip.id))}
                   tracker={tracker.current!}
                   onSoundBlocked={() => p.setMuted(true)}
@@ -304,17 +310,41 @@ type ReelVideoProps = {
   active: boolean;
   paused: boolean;
   muted: boolean;
-  preload: "auto" | "metadata";
+  preload: "auto" | "none";
+  /** Called once this reel is actually playing (or has had long enough to), so the next can load. */
+  onStarted?: () => void;
   register: (v: HTMLVideoElement | null) => void;
   tracker: WatchTracker;
   onSoundBlocked: () => void;
 };
 
-function ReelVideo({ clip, active, paused, muted, preload, register, tracker, onSoundBlocked }: ReelVideoProps) {
+function ReelVideo({ clip, active, paused, muted, preload, onStarted, register, tracker, onSoundBlocked }: ReelVideoProps) {
   const ref = useRef<HTMLVideoElement>(null);
   const [ready, setReady] = useState(false);
   const soundBlocked = useRef(onSoundBlocked);
   soundBlocked.current = onSoundBlocked;
+  const started = useRef(onStarted);
+  started.current = onStarted;
+
+  // Tell the feed when the next reel may start loading: on first playback, or after 2.5s regardless,
+  // so a reel that can't autoplay never blocks the one after it.
+  useEffect(() => {
+    const v = ref.current;
+    if (!v || !active) return;
+    const go = () => started.current?.();
+    const t = setTimeout(go, 2500);
+    v.addEventListener("playing", go, { once: true });
+    return () => {
+      clearTimeout(t);
+      v.removeEventListener("playing", go);
+    };
+  }, [active]);
+
+  // Raising preload from none to auto doesn't make every browser start fetching, so nudge it.
+  useEffect(() => {
+    const v = ref.current;
+    if (v && preload === "auto" && v.readyState === 0 && v.networkState !== v.NETWORK_LOADING) v.load();
+  }, [preload]);
 
   // React doesn't reflect `muted` as an attribute on first render; iOS needs it there to allow autoplay.
   useEffect(() => {
@@ -380,6 +410,7 @@ function ReelVideo({ clip, active, paused, muted, preload, register, tracker, on
         className="ov-video"
         data-ready={ready}
         src={clip.url}
+        poster={clip.poster}
         muted
         loop
         playsInline
