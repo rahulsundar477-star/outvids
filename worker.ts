@@ -21,13 +21,33 @@ import {
 
 const FEED_URL = "https://outvids.lol/feed.json";
 
+// Set on every response unless a route already chose its own value. No script-src here: Next.js
+// inlines its bootstrap scripts, and a CSP that breaks the app protects nothing.
+const SECURITY_HEADERS: [string, string][] = [
+  ["Strict-Transport-Security", "max-age=31536000; includeSubDomains"],
+  ["X-Content-Type-Options", "nosniff"],
+  ["X-Frame-Options", "DENY"], // nobody can frame the pay button (clickjacking)
+  ["Content-Security-Policy", "frame-ancestors 'none'; base-uri 'self'; object-src 'none'; form-action 'self'"],
+  ["Referrer-Policy", "strict-origin-when-cross-origin"],
+  ["Permissions-Policy", "camera=(), microphone=(), geolocation=(), usb=(), browsing-topics=()"],
+  ["Cross-Origin-Opener-Policy", "same-origin"],
+];
+
+function secure(res: Response): Response {
+  if (SECURITY_HEADERS.every(([k]) => res.headers.has(k))) return res;
+  // Copy: responses from fetch() and the cache can have immutable headers. The body streams through.
+  const out = new Response(res.body, res);
+  for (const [k, v] of SECURITY_HEADERS) if (!out.headers.has(k)) out.headers.set(k, v);
+  return out;
+}
+
 export default {
   async fetch(request, env, ctx) {
     const { pathname } = new URL(request.url);
-    if (isHotPath(pathname)) return handleHotPath(request, env, ctx);
-    if (isPaymentsRoute(pathname)) return handlePayments(request, env, ctx);
-    if (isSecurityRoute(pathname)) return handleSecurity(request, env);
-    return handler.fetch(request, env, ctx);
+    if (isHotPath(pathname)) return secure(await handleHotPath(request, env, ctx));
+    if (isPaymentsRoute(pathname)) return secure(await handlePayments(request, env, ctx));
+    if (isSecurityRoute(pathname)) return secure(await handleSecurity(request, env));
+    return secure(await handler.fetch(request, env, ctx));
   },
 
   async scheduled(_controller, env, ctx) {

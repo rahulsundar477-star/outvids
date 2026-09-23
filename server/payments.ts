@@ -16,6 +16,7 @@
  */
 import DodoPayments from "dodopayments";
 import { enrichAndSave } from "./enrich";
+import { allowedOrigins, hasBearer } from "./auth";
 import { edgeLimit } from "./limit";
 import {
   CATEGORIES,
@@ -104,12 +105,8 @@ function config(env: Env) {
     environment,
     businessId: env.DODO_BUSINESS_ID?.trim() || null,
     origin,
-    allowedOrigins: new Set([
-      origin,
-      "http://localhost:3100",
-      "http://localhost:8787",
-      "http://127.0.0.1:8787",
-    ]),
+    // Localhost is accepted only when this Worker is itself running locally (server/auth.ts).
+    allowedOrigins: allowedOrigins(origin),
   };
 }
 type Config = ReturnType<typeof config>;
@@ -1120,9 +1117,7 @@ async function bidByPayment(env: Env, paymentId: string) {
 
 /** POST /api/enrich  { link, listing_key? } — refetch brand details. Authorization: Bearer <RERANK_TOKEN>. */
 async function adminEnrich(request: Request, env: Env, ctx: Ctx, cfg: Config) {
-  const expected = env.RERANK_TOKEN;
-  const given = (request.headers.get("authorization") ?? "").replace(/^Bearer\s+/i, "");
-  if (!expected || given !== expected) return json({ error: "unauthorized" }, 401);
+  if (!(await hasBearer(request, env.RERANK_TOKEN))) return json({ error: "unauthorized" }, 401);
   const body = await readJson(request);
   const listing = normalizeListing(String(body?.link ?? ""));
   if (isLinkError(listing)) return json({ error: "invalid_link", message: listing.error }, 400);

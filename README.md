@@ -38,6 +38,7 @@ npm run usage          # usage against the free allowances (see docs/runbook.md)
 npm run panic          # kill switch: serve a static page from a Worker with no bindings
 npm run resume         # put the app back
 npm run security:reports  # read the inbox behind outvids.lol/security
+npm run scan:secrets   # every file and every commit, values masked (also part of npm test)
 ```
 
 ## Configuration

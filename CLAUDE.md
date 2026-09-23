@@ -42,6 +42,10 @@ It's a solo project, mobile-first, and every video is 9:16.
   - The R2 keys live in `platform/.env`.
   - `CF_ANALYTICS_TOKEN` is a wrangler secret.
   - `DODO_PAYMENTS_API_KEY` and `DODO_PAYMENTS_WEBHOOK_KEY` are wrangler secrets.
+  - `IP_HASH_SALT` is a wrangler secret (random, 32 bytes). Without it the code falls back to a public string.
+- **The repo is public-ready: keep it that way.** `npm test` ends with `scripts-secret-scan.mjs`, which scans every
+  file and every commit and fails on a key or on raw control bytes in source. Never weaken it to make a test pass;
+  if it finds a real secret, rotate the secret first, then rewrite history before pushing.
 - **NEVER show fake numbers.** Flames, streaks, crew, board and stats start at 0 and only count real events. The user had every placeholder zeroed.
 - **NEVER say a payment happened unless the server verified it.** Only a `paid` bid in D1 counts; never trust Dodo's `?status=` return param. When checkout fails or is off, the copy must say nothing was charged.
 - **Money code changes need `npm run test:payments` green.** `server/payments.ts` is plain Worker code routed in `worker.ts`: never move it into Next.js route handlers (CPU limit).

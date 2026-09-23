@@ -9,6 +9,7 @@ import { Webhook } from "standardwebhooks";
 import { handlePayments, reconcilePayments } from "../server/payments";
 import { resetEdgeLimit } from "../server/limit";
 import { handleSecurity } from "../server/security";
+import { allowedOrigins, safeEqual } from "../server/auth";
 import { dodoState } from "./dodo-mock";
 
 // ── D1 shim over node:sqlite ────────────────────────────────────────────────
@@ -1095,6 +1096,35 @@ await test("security report: five an hour per address, then refused", async () =
   for (let i = 0; i < 7; i++) codes.push((await report(env, { ...goodReport, summary: `Report number ${i}` })).status);
   eq(codes, [201, 201, 201, 201, 201, 429, 429], "cap at five");
   eq(count(db, "SELECT COUNT(*) AS n FROM security_reports"), 5, "only five stored");
+});
+
+// ── public-source hardening ─────────────────────────────────────────────────
+await test("production refuses localhost origins; local dev accepts them", async () => {
+  eq([...allowedOrigins("https://outvids.lol")], ["https://outvids.lol"], "production: own origin only");
+  eq(allowedOrigins("http://localhost:8787").has("http://localhost:3100"), true, "local: dev ports allowed");
+
+  const { env } = makeEnv();
+  const body = { link: "acme.com", category: "AI", target_dollars: 10, idempotency_key: key() };
+  eq((await checkout(env, body, "http://localhost:3100")).status, 403, "checkout from localhost in production");
+  eq((await report(env, goodReport, { origin: "http://localhost:8787" })).status, 403, "report from localhost in production");
+
+  const local = makeEnv({ PUBLIC_ORIGIN: "http://localhost:8787" });
+  eq((await checkout(local.env, { ...body, idempotency_key: key() }, "http://localhost:3100")).status, 200, "checkout in local dev");
+});
+
+await test("admin token: constant-time, and wrong or missing tokens get 401", async () => {
+  eq(await safeEqual("abc", "abc"), true, "equal");
+  eq(await safeEqual("abc", "abd"), false, "same length, different");
+  eq(await safeEqual("ab", "abc"), false, "different length");
+  const { env } = makeEnv({ RERANK_TOKEN: "correct-horse-battery-staple" });
+  const enrich = (auth?: string) =>
+    call(env, "POST", "/api/enrich", { link: "https://example.com" }, auth ? { authorization: auth } : {});
+  eq((await enrich()).status, 401, "no token");
+  eq((await enrich("Bearer ")).status, 401, "empty token");
+  eq((await enrich("Bearer correct-horse-battery-stapLe")).status, 401, "one character off");
+  eq((await enrich("Bearer correct")).status, 401, "prefix of the token");
+  const none = makeEnv();
+  eq((await call(none.env, "POST", "/api/enrich", {}, { authorization: "Bearer anything" })).status, 401, "no token configured");
 });
 
 // ── report ──────────────────────────────────────────────────────────────────

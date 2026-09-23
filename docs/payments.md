@@ -54,7 +54,7 @@ and Tutti, 192x192 for Outrank and inetGeek, and the service fallback at 256x256
 | Name                        | Where                | Value                                                                                                |
 | --------------------------- | -------------------- | ---------------------------------------------------------------------------------------------------- |
 | `DODO_PAYMENTS_API_KEY`     | wrangler secret      | test key                                                                                             |
-| `DODO_PAYMENTS_WEBHOOK_KEY` | wrangler secret      | signing secret of endpoint `ep_3JSiQDJMhPWETF3ZlT0V2bv82M6`                                          |
+| `DODO_PAYMENTS_WEBHOOK_KEY` | wrangler secret      | signing secret of the outvids.lol webhook endpoint                                          |
 | `DODO_ENVIRONMENT`          | `wrangler.jsonc` var | `test_mode`                                                                                          |
 | `DODO_BID_PRODUCT_ID`       | var                  | `pdt_0Nno7geQl7XrtnPp4p8VS` ("Outbid listing", Pay What You Want, $1 minimum, tax exclusive, no PPP) |
 | `DODO_BUSINESS_ID`          | var                  | `bus_zZcJA2RqYtLEnVoHEj5N8` (events from other businesses are ignored)                               |

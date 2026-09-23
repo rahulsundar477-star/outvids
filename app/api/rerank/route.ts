@@ -1,5 +1,6 @@
 import { cf, edgeCache } from "@/lib/edge";
 import { rerank } from "@/lib/rank";
+import { hasBearer } from "@/server/auth";
 
 export const dynamic = "force-dynamic";
 
@@ -9,9 +10,8 @@ export const dynamic = "force-dynamic";
  */
 export async function POST(request: Request) {
   const { env } = cf();
-  const expected = env.RERANK_TOKEN;
-  const given = (request.headers.get("authorization") ?? "").replace(/^Bearer\s+/i, "");
-  if (!expected || !timingSafeEqual(given, expected)) return Response.json({ error: "unauthorized" }, { status: 401 });
+  if (!(await hasBearer(request, env.RERANK_TOKEN)))
+    return Response.json({ error: "unauthorized" }, { status: 401 });
 
   const trigger = new URL(request.url).searchParams.get("trigger") === "upload" ? "upload" : "manual";
   const { feed, statsError, ms } = await rerank(env, trigger);
@@ -21,11 +21,4 @@ export async function POST(request: Request) {
     { ok: true, trigger, source: feed.source, count: feed.count, generated_at: feed.generated_at, ms, stats_error: statsError, top: feed.clips.slice(0, 5) },
     { headers: { "Cache-Control": "no-store" } },
   );
-}
-
-function timingSafeEqual(a: string, b: string) {
-  if (a.length !== b.length) return false;
-  let diff = 0;
-  for (let i = 0; i < a.length; i++) diff |= a.charCodeAt(i) ^ b.charCodeAt(i);
-  return diff === 0;
 }

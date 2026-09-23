@@ -23,7 +23,8 @@
     "golive:clean-test": "node scripts-golive.mjs clean-test",
     "test:feed": "node tests/run-feed.mjs",
     "bench:enrich": "node tests/run-bench.mjs",
-    "test": "npm run test:payments && npm run test:feed && node tests/check-security-txt.mjs"
+    "test": "npm run test:payments && npm run test:feed && node tests/check-security-txt.mjs && node scripts-secret-scan.mjs",
+    "scan:secrets": "node scripts-secret-scan.mjs"
   },
   "dependencies": {
     "@opennextjs/cloudflare": "^1.20.6",
